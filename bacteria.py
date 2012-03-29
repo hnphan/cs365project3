@@ -1,27 +1,33 @@
+#!/usr/bin/env python
+
+# David Cain
+# Hieu Phan
+# Justin Sperry
+# 2012-03-29
+# CS365, Brian Eastwood
+
 '''
 Created on Feb 20, 2012
 
 @author: bseastwo
 '''
 
-import time
+import math
+import os
+import shelve
 
-#import FirewireVideo
+from scipy import ndimage
+import cv
+import cv2
+import glob
+import numpy
+import optparse
+
+import avgimage
+import FirewireVideo
 import imgutil
 import pipeline
 import source
-import numpy
-import os
-import glob
-import optparse
-import cv2
-import cv
-import shelve
-import math
-
-from scipy import ndimage
-
-import avgimage
 
 class AffineIntensity(pipeline.ProcessObject):
     '''
@@ -73,7 +79,7 @@ class AffineIntensity(pipeline.ProcessObject):
         self.modified()
 
     def setGain(self, value):
-        input = self.getInput(0).getData()
+        #input = self.getInput(0).getData()
         Imin = -self.offset/self.scale
         Imax = (255 - self.offset)/self.scale
         Imid = (Imax+Imin)/2
@@ -185,13 +191,11 @@ class RegionProperties(pipeline.ProcessObject):
          of the bacteria colonies
     '''  
     
-    
     #Constructor, regions and a mask are optional
     def __init__(self, input = None, input1 = None):
         pipeline.ProcessObject.__init__(self, input)
         self.setInput(input1, 1)
         self.data = numpy.zeros((6,3,200))
-        
     
     def generateData(self):
         input = self.getInput(1).getData()
@@ -212,7 +216,6 @@ class RegionProperties(pipeline.ProcessObject):
             #checks to make sure perimeter is not zero
             if p!=0:
             	circularity = (4*math.pi)/((p*p)/area)
-            	
             else:
             	circularity = 0
             
@@ -220,8 +223,6 @@ class RegionProperties(pipeline.ProcessObject):
             
             print "Colony %s at %s has an area of %s and a circularity of %s" %(i,c_o_m,area,circularity)
         
-            
-            
                  
         self.getOutput(0).setData(input)    
 
@@ -231,8 +232,6 @@ class RegionProperties(pipeline.ProcessObject):
         
         
 class Perimeter(pipeline.ProcessObject):
-    
-    
     def __init__(self, input = None):
         pipeline.ProcessObject.__init__(self, input)
         self.setOutput(input, 1)
@@ -248,8 +247,6 @@ class Perimeter(pipeline.ProcessObject):
         tempBinary = tempBinary - fill
         self.getOutput(0).setData(tempBinary*255)
         self.getOutput(1).setData(input)        
-        
-        
     
     
 if __name__ == "__main__":
