@@ -18,6 +18,8 @@ import cv2
 import cv
 from scipy import ndimage
 
+import avgimage
+
 class AffineIntensity(pipeline.ProcessObject):
     '''
     Adjusts contrast by a given scalar and calculates an offset to maintain
@@ -76,6 +78,7 @@ class AffineIntensity(pipeline.ProcessObject):
         self.offset = Imid - (self.scale*255/2)
         self.modified()
 
+
 class Display(pipeline.ProcessObject):
     
     def __init__(self, input = None, name = "pipeline"):
@@ -123,38 +126,120 @@ class BinarySegmentation(pipeline.ProcessObject):
         self.binary = numpy.logical_or(self.binary, tempBinary).astype(numpy.uint8)
         self.getOutput(0).setData(self.binary*255)
 
+class FilterFlatField(pipeline.ProcessObject):
+    """
+        Applies the flat field image to the input stream
+    """
+    
+    def __init__(self, input=None, ff_image=None):
+        pipeline.ProcessObject.__init__(self, input)
+        if ff_image != None:
+            self.setFFImage(ff_image)
+        
+    def setFFImage(self, ff_image):
+        self.ff_image = ff_image
+        self.modified()
+    
+    def generateData(self):
+        inpt = self.getInput(0).getData()
+        output = inpt*self.ff_image
+        self.getOutput(0).setData(output)
+
+
+class Cropper(pipeline.ProcessObject):
+    """
+        Crops the input stream to the given dimensions (see crop_np_image)
+    """
+    
+    def __init__(self, input = None, crop_dimensions = None):
+        pipeline.ProcessObject.__init__(self, input)
+        if crop_dimensions != None:
+            self.setCropDimensions(crop_dimensions)
+        
+    def setCropDimensions(self, crop_dimensions):
+        self.crop_dimensions = crop_dimensions
+        self.modified()
+
+    def generateData(self):
+        inpt = self.getInput(0).getData()
+        cropped_image = crop_np_image(inpt, self.crop_dimensions)
+        self.getOutput(0).setData(cropped_image)
+
+def crop_np_image( input_image, crop_dimensions ):
+    """
+        Crops an input numpy image to the given dimensions
+
+        crop_dimensions: [(ystart,yend), (xstart,xend)]
+    """
+    (ystart, yend), (xstart,xend) = crop_dimensions
+    output = input_image[ystart : yend, xstart : xend]
+    return output
 
 if __name__ == "__main__":
     parser = optparse.OptionParser()
     parser.add_option("-p", "--path", help="the path of the image folder", default=None)
     options, remain = parser.parse_args()
-    exts = ["*.raw"]
+    exts = ["bact*.raw"]
+    flat_exts = ["flat*.raw"]
     files = [] # display images from file
+    flat_files = [] # flat-field images
     if options.path != None:
         # grab files into a list
         for ext in exts:
             files += glob.glob(os.path.join(options.path,ext))   
+        for ext in flat_exts:
+            flat_files += glob.glob(os.path.join(options.path, ext))
+
     files.sort()
+    flat_files.sort()
+
     # read in the background image
+    '''
     bgImg = source.readImageFile(files[0])
     bgImg = (bgImg * 255.0/4095.0).astype(numpy.uint8)
     cv2.imshow("bgImg", bgImg)
+    '''
 
     # read in all images
     fileStackReader = source.FileStackReader(files)
+
+    # Crop to  [(ymin, ymax), (xmin, xmax)]
+    dimensions = [ (100, 920), (45, 1315) ]
+    cropped_images = Cropper(fileStackReader.getOutput(), dimensions)
     
     # convert to 8 bit
-    eightbitimages = AffineIntensity(fileStackReader.getOutput())
+    eightbitimages = AffineIntensity(cropped_images.getOutput())
     eightbitimages.setScale(255.0/4095.0)
     
+    # Obtain the flat-field image
+    savename = "flat_field.npy"
+    if not os.path.isfile(savename):
+        flat_images = ( source.readImageFile(fn) for fn in flat_files )
+        cropped_flat_images = (crop_np_image(img, dimensions) for img in flat_images)
+        flat_field = avgimage.get_flat_field(cropped_flat_images, len(flat_files))
+        numpy.save(savename, flat_field)
+    else:
+        print "Loading flat field '%s'" % savename
+        flat_field = numpy.load(savename)
+        (ystart, yend), (xstart,xend) = dimensions
+        cropped_shape = ( yend - ystart, xend-xstart )
+        assert flat_field.shape == cropped_shape, ( "Flat field size differs "
+            "from image sizes. Try deleting file.")
+    #cv2.imshow("Flat field image", flat_field)
+
+    # Apply flat-fielding to the images
+    corrected_images = FilterFlatField( eightbitimages.getOutput(), flat_field)
+
     # do binary segmentation
-    binarySeg = BinarySegmentation(eightbitimages.getOutput(), bgImg)
+    binarySeg = BinarySegmentation(corrected_images.getOutput(), bgImg)
     display1 = Display(eightbitimages.getOutput(),"original")
-    display2 = Display(binarySeg.getOutput(),"binary segmentation")
-    key = cv2.waitKey(10)
+    display2 = Display(corrected_images.getOutput(),"flat-fielding")
+    display3 = Display(binarySeg.getOutput(),"binary segmentation")
+    key = None
     while key != 27:
       fileStackReader.increment()
-      #print fileStackReader.getFrameName()
+      print fileStackReader.getFrameName()
       display1.update()
       display2.update()
+      display3.update()
       cv2.waitKey(10)
