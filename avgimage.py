@@ -26,7 +26,11 @@ def get_flat_field(np_images, buffer_size=None):
     for image in np_images:
         avg.add_image(image)
 
-    return avg.get_avg_image()
+    avg_image = avg.get_avg_image()
+    avg_mean = avg_image.mean() 
+    avg_image[avg_image==0] = avg_mean # Avoid divide-by-zero error
+
+    return (avg_mean / avg_image)
 
 
 class AvgImage:
@@ -92,8 +96,8 @@ class AvgImage:
         """
         self.i = 0
         self.all_scanned = False
-        self.image_shape = (width, height, channels) = image_shape
-        self.frame_buffer = numpy.zeros( (self.buffer_size, width, height, channels) )
+        self.image_shape  = image_shape
+        self.frame_buffer = numpy.zeros( [self.buffer_size] + list(image_shape))
 
     def add_image(self, image, recalc_avg=False):
         """
