@@ -190,6 +190,8 @@ class RegionProperties(pipeline.ProcessObject):
     def __init__(self, input = None, input1 = None):
         pipeline.ProcessObject.__init__(self, input)
         self.setInput(input1, 1)
+        self.data = numpy.zeros((6,3,200))
+        
     
     def generateData(self):
         input = self.getInput(1).getData()
@@ -198,17 +200,25 @@ class RegionProperties(pipeline.ProcessObject):
         plabels, pcount = ndimage.label(perimeters)
         slices = ndimage.find_objects(labels)
         
+        print "There are %s regions" % (count)
+        
         for i in numpy.unique(labels):
         
             c_o_m = ndimage.center_of_mass(input,labels,i)
+            
             area = labels[i == labels].size
             p = plabels[i == plabels].size
-            circularity = (4*math.pi)/((p*p)/area)
+            
+            #checks to make sure perimeter is not zero
+            if p!=0:
+            	circularity = (4*math.pi)/((p*p)/area)
+            	
+            else:
+            	circularity = 0
             
             metrics = (area, circularity)
             
-            print "Colony "+int(i)+" at "+ int(c_o_m)+ ' has an area of '+int(area)+(
-                    ' and a circularity of '+int(circularity))
+            print "Colony %s at %s has an area of %s and a circularity of %s" %(i,c_o_m,area,circularity)
         
             
             
@@ -302,12 +312,17 @@ if __name__ == "__main__":
 
     # Get perimeter
     perimeter = Perimeter(binarySeg.getOutput())
-
+    
+    # Calculate Region Properties
+    regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
+    
+    
     # Display images
     display1 = Display(eightbitimages.getOutput(),"Original Image")
     display2 = Display(corrected_images.getOutput(),"Flat-fielded Image")
     display3 = Display(binarySeg.getOutput(),"Binary Segmentation")
     display4 = Display(perimeter.getOutput(), "perimeter")
+    
     key = None
     while key != 27:
       fileStackReader.increment()
@@ -316,4 +331,5 @@ if __name__ == "__main__":
       display2.update()
       display3.update()
       display4.update()
+      regProperties.update()
       cv2.waitKey(10)
