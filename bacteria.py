@@ -16,6 +16,9 @@ import glob
 import optparse
 import cv2
 import cv
+import shelve
+import math
+
 from scipy import ndimage
 
 import avgimage
@@ -175,6 +178,70 @@ def crop_np_image( input_image, crop_dimensions ):
     output = input_image[ystart : yend, xstart : xend]
     return output
 
+
+class RegionProperties(pipeline.ProcessObject):
+    '''
+        Calculates area, center of mass, and circularity
+         of the bacteria colonies
+    '''  
+    
+    
+    #Constructor, regions and a mask are optional
+    def __init__(self, input = None, input1 = None):
+        pipeline.ProcessObject.__init__(self, input)
+        self.setInput(input1, 1)
+    
+    def generateData(self):
+        input = self.getInput(1).getData()
+        perimeters = self.getInput(0).getData()
+        labels, count = ndimage.label(input)
+        plabels, pcount = ndimage.label(perimeters)
+        slices = ndimage.find_objects(labels)
+        
+        for i in numpy.unique(labels):
+        
+            c_o_m = ndimage.center_of_mass(input,labels,i)
+            area = labels[i == labels].size
+            p = plabels[i == plabels].size
+            circularity = (4*math.pi)/((p*p)/area)
+            
+            metrics = (area, circularity)
+            
+            print "Colony "+int(i)+" at "+ int(c_o_m)+ ' has an area of '+int(area)+(
+                    ' and a circularity of '+int(circularity))
+        
+            
+            
+                 
+        self.getOutput(0).setData(input)    
+
+
+    def setLabels(self, labels):
+        self.labels = labels
+        
+        
+class Perimeter(pipeline.ProcessObject):
+    
+    
+    def __init__(self, input = None):
+        pipeline.ProcessObject.__init__(self, input)
+        self.setOutput(input, 1)
+        
+    def generateData(self):
+        input = self.getInput(0).getData()
+        tempBinary = numpy.zeros(input.shape)
+        tempBinary[input < 30] = 1
+        tempBinary[input >=30] = 0
+
+        fill = ndimage.grey_erosion(tempBinary, size = (3,3))
+        
+        tempBinary = tempBinary - fill
+        self.getOutput(0).setData(tempBinary*255)
+        self.getOutput(1).setData(input)        
+        
+        
+    
+    
 if __name__ == "__main__":
     parser = optparse.OptionParser()
     parser.add_option("-p", "--path", help="the path of the image folder", default=None)
@@ -233,10 +300,14 @@ if __name__ == "__main__":
     # Do binary segmentation
     binarySeg = BinarySegmentation(corrected_images.getOutput(), bgImg)
 
+    # Get perimeter
+    perimeter = Perimeter(binarySeg.getOutput())
+
     # Display images
     display1 = Display(eightbitimages.getOutput(),"Original Image")
     display2 = Display(corrected_images.getOutput(),"Flat-fielded Image")
     display3 = Display(binarySeg.getOutput(),"Binary Segmentation")
+    display4 = Display(perimeter.getOutput(), "perimeter")
     key = None
     while key != 27:
       fileStackReader.increment()
@@ -244,4 +315,5 @@ if __name__ == "__main__":
       display1.update()
       display2.update()
       display3.update()
+      display4.update()
       cv2.waitKey(10)
