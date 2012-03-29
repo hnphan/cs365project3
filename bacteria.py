@@ -113,7 +113,7 @@ class BinarySegmentation(pipeline.ProcessObject):
         #print "bg: ", self.bgImg[465,485]
         output = (input.astype(numpy.float) - self.bgImg.astype(numpy.float)) #background subtraction
         output = output + 40
-        print "output: ", output[694,713]
+        #print "output: ", output[694,713]
 
         tempBinary = numpy.zeros(output.shape)
         tempBinary[output < 30] = 1
@@ -193,18 +193,18 @@ if __name__ == "__main__":
     files.sort()
     flat_files.sort()
 
-    # read in the background image
-    '''
-    bgImg = source.readImageFile(files[0])
-    bgImg = (bgImg * 255.0/4095.0).astype(numpy.uint8)
-    cv2.imshow("bgImg", bgImg)
-    '''
-
-    # read in all images
-    fileStackReader = source.FileStackReader(files)
-
+    # Specify dimensions all images are to be cropped to
     # Crop to  [(ymin, ymax), (xmin, xmax)]
     dimensions = [ (100, 920), (45, 1315) ]
+
+    # Read in the background image
+    bgImg = source.readImageFile(files[0])
+    bgImg = (bgImg * 255.0/4095.0).astype(numpy.uint8)
+    bgImg = crop_np_image( bgImg, dimensions)
+    #cv2.imshow("bgImg", bgImg)
+
+    # Read in all images, crop them
+    fileStackReader = source.FileStackReader(files)
     cropped_images = Cropper(fileStackReader.getOutput(), dimensions)
     
     # convert to 8 bit
@@ -230,11 +230,13 @@ if __name__ == "__main__":
     # Apply flat-fielding to the images
     corrected_images = FilterFlatField( eightbitimages.getOutput(), flat_field)
 
-    # do binary segmentation
+    # Do binary segmentation
     binarySeg = BinarySegmentation(corrected_images.getOutput(), bgImg)
-    display1 = Display(eightbitimages.getOutput(),"original")
-    display2 = Display(corrected_images.getOutput(),"flat-fielding")
-    display3 = Display(binarySeg.getOutput(),"binary segmentation")
+
+    # Display images
+    display1 = Display(eightbitimages.getOutput(),"Original Image")
+    display2 = Display(corrected_images.getOutput(),"Flat-fielded Image")
+    display3 = Display(binarySeg.getOutput(),"Binary Segmentation")
     key = None
     while key != 27:
       fileStackReader.increment()
