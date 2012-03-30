@@ -29,342 +29,301 @@ import imgutil
 import pipeline
 import source
 
-class Dishes:
-	upper_middle, upper_right, lower_left, lower_middle = range(4)
-
-class AffineIntensity(pipeline.ProcessObject):
-	'''
-	Adjusts contrast by a given scalar and calculates an offset to maintain
-	'''
-	def __init__(self, input = None):
-		pipeline.ProcessObject.__init__(self, input)
-		self.scale = 1.0
-		self.offset = 0.0
-		
-	def generateData(self):
-		input = self.getInput(0).getData()
-		
-		if input.dtype == numpy.uint8:
-			# lookup table
-			lookUp = numpy.arange(256)
-			lookUp = (lookUp * self.scale) + self.offset
-			lookUp[lookUp>255] = 255
-			lookUp[lookUp<0] = 0
-			output = lookUp[input]
-		else:
-			output = (input * self.scale) + self.offset
-			output[output>255] = 255
-			output[output<0] = 0
-			output = output.astype(numpy.uint8)
-
-		self.getOutput(0).setData(output)
-		
-	def setScale(self,scale):
-		self.scale = scale
-		self.modified()
-
-	def setOffset(self,offset):
-		self.offset = offset
-		self.modified()
-		
-	def getScale(self):
-		return self.scale
-		
-	def getOffset(self):
-		return self.offset
-		
-	def autoContrast(self):
-		input = self.getInput(0).getData()
-		Imin = input.min()
-		Imax = input.max()
-		self.scale = 255.0/(Imax-Imin)
-		self.offset = -self.scale * Imin
-		self.modified()
-
-	def setGain(self, value):
-		#input = self.getInput(0).getData()
-		Imin = -self.offset/self.scale
-		Imax = (255 - self.offset)/self.scale
-		Imid = (Imax+Imin)/2
-		self.scale = value
-		self.offset = Imid - (self.scale*255/2)
-		self.modified()
-
-
 class Display(pipeline.ProcessObject):
-	
-	def __init__(self, input = None, name = "pipeline"):
-		pipeline.ProcessObject.__init__(self, input)
-		cv2.namedWindow(name, cv.CV_WINDOW_NORMAL)
-		self.name = name
-		
-	def generateData(self):
-		input = self.getInput(0).getData()
-		# output here so channels don't get flipped
-		self.getOutput(0).setData(input)
+    
+    def __init__(self, input = None, name = "pipeline"):
+        pipeline.ProcessObject.__init__(self, input)
+        cv2.namedWindow(name, cv.CV_WINDOW_NORMAL)
+        self.name = name
+        
+    def generateData(self):
+        input = self.getInput(0).getData()
+        # output here so channels don't get flipped
+        self.getOutput(0).setData(input)
 
-		# Convert back to OpenCV BGR from RGB
-		if input.ndim == 3 and input.shape[2] == 3:
-			input = input[..., ::-1]
-		
-		cv2.imshow(self.name, input.astype(numpy.uint8))        
+        # Convert back to OpenCV BGR from RGB
+        if input.ndim == 3 and input.shape[2] == 3:
+            input = input[..., ::-1]
+        
+        cv2.imshow(self.name, input.astype(numpy.uint8))        
 
-
-	
 
 class BinarySegmentation(pipeline.ProcessObject):
-	'''
-	Segments the bacteria colonies in the images.
-	'''
-	def __init__(self, input = None, bgImg = None):
-		pipeline.ProcessObject.__init__(self, input)
-		self.bgImg = bgImg
-		self.binary = numpy.zeros(bgImg.shape)
-	
-	def generateData(self):
-		input = self.getInput(0).getData()
-		#print "input: ",input[465,485]
-		#print "bg: ", self.bgImg[465,485]
-		output = (input.astype(numpy.float) - self.bgImg.astype(numpy.float)) #background subtraction
-		#output = output + 40
-		#print "output: ", output[694,713]
-
-		tempBinary = numpy.zeros(output.shape)
-		tempBinary[output < 10] = 1
-		#tempBinary[output >= 30] = 0
-
-		tempBinary = ndimage.grey_erosion(tempBinary, size = (3,3))
-		tempBinary = ndimage.grey_erosion(tempBinary, size = (3,3))
-		tempBinary = ndimage.grey_dilation(tempBinary, size = (3,3))
-
-		self.binary = numpy.logical_or(self.binary, tempBinary).astype(numpy.uint8)
-		self.getOutput(0).setData(self.binary*255)
+    '''
+    Segments the bacteria colonies in the images.
+    '''
+    def __init__(self, input = None, bgImg = None, std_bgImg = None, alpha = None):
+        pipeline.ProcessObject.__init__(self, input)
+        self.bgImg = bgImg
+        self.binary = numpy.zeros(bgImg.shape)
+        self.std_bgImg = std_bgImg
+        self.alpha = alpha
+    
+    def generateData(self):
+        input = self.getInput(0).getData()
+        #print "input: ",input[465,485]
+        #print "bg: ", self.bgImg[465,485]
+        #background subtraction
+        output = (input.astype(numpy.float) - self.bgImg.astype(numpy.float))
+        #output = output + 40
+        #print "output: ", output[694,713]
+        
+        threshold = self.alpha * std_bgImg
+        #print threshold[100:200,100:200]
+        tempBinary = numpy.zeros(output.shape)
+        #tempBinary[output > threshold] = 1
+        tempBinary[output < -5] = 1
+        
+        tempBinary = ndimage.morphology.binary_opening(tempBinary, iterations = 5)
+        
+        self.binary = numpy.logical_or(self.binary, tempBinary).astype(numpy.uint8)
+        self.getOutput(0).setData(self.binary*255)
 
 class FilterFlatField(pipeline.ProcessObject):
-	"""
-		Applies the flat field image to the input stream
-	"""
-	
-	def __init__(self, input=None, ff_image=None):
-		pipeline.ProcessObject.__init__(self, input)
-		if ff_image != None:
-			self.setFFImage(ff_image)
-		
-	def setFFImage(self, ff_image):
-		self.ff_image = ff_image
-		self.modified()
-	
-	def generateData(self):
-		inpt = self.getInput(0).getData()
-		output = inpt*self.ff_image
-		self.getOutput(0).setData(output)
+    """
+        Applies the flat field image to the input stream
+    """
+    
+    def __init__(self, input=None, ff_image=None):
+        pipeline.ProcessObject.__init__(self, input)
+        if ff_image != None:
+            self.setFFImage(ff_image)
+        
+    def setFFImage(self, ff_image):
+        self.ff_image = ff_image
+        self.modified()
+    
+    def generateData(self):
+        inpt = self.getInput(0).getData()
+        output = inpt*self.ff_image
+        self.getOutput(0).setData(output)
 
 
-class Cropper(pipeline.ProcessObject):
-	"""
-		Crops the input stream to the given dimensions (see crop_np_image)
-	"""
-	
-	def __init__(self, input = None, crop_dimensions = None):
-		pipeline.ProcessObject.__init__(self, input)
-		if crop_dimensions != None:
-			self.setCropDimensions(crop_dimensions)
-		
-	def setCropDimensions(self, crop_dimensions):
-		self.crop_dimensions = crop_dimensions
-		self.modified()
+class ImageCorrect(pipeline.ProcessObject):
+    """
+        Corrects the image by cropping its relevant region, converting the dtype.
+    """
+    
+    def __init__(self, input=None, crop_dimensions=None, dtype=numpy.float64):
+        pipeline.ProcessObject.__init__(self, input)
+        self.dtype = dtype
+        if crop_dimensions != None:
+            self.setCropDimensions(crop_dimensions)
+        
+    def setCropDimensions(self, crop_dimensions):
+        self.crop_dimensions = crop_dimensions
+        self.modified()
 
-	def generateData(self):
-		inpt = self.getInput(0).getData()
-		cropped_image = crop_np_image(inpt, self.crop_dimensions)
-		self.getOutput(0).setData(cropped_image)
+    def generateData(self):
+        """
+            Crop the image to the desired dimensions and change the type
+        """
+        inpt = self.getInput(0).getData()
+        cropped_image = crop_image(inpt, self.crop_dimensions)
 
-def crop_np_image( input_image, crop_dimensions ):
-	"""
-		Crops an input numpy image to the given dimensions
+        scaled_cropped = scale_image(cropped_image, self.dtype)
+        self.getOutput(0).setData(scaled_cropped)
 
-		crop_dimensions: [(ystart,yend), (xstart,xend)]
-	"""
-	(ystart, yend), (xstart,xend) = crop_dimensions
-	output = input_image[ystart : yend, xstart : xend]
-	return output
+def crop_image( input_image, crop_dimensions ):
+    """
+        Crops an input numpy image to the given dimensions
+
+        crop_dimensions: [(ystart,yend), (xstart,xend)]
+    """
+    (ystart, yend), (xstart,xend) = crop_dimensions
+    output = input_image[ystart : yend, xstart : xend]
+    return output
+
+def scale_image( input_image, dtype):
+    """
+        Scale the input image to its max value, assign the given type
+    """
+    input_image *= (255.0 / input_image.max())
+    input_image = input_image.astype(dtype)
+    return input_image
 
 
 class RegionProperties(pipeline.ProcessObject):
-	'''
-		Calculates area, center of mass, and circularity
-		 of the bacteria colonies
-	'''  
-	
-	#Constructor, regions and a mask are optional
-	def __init__(self, input = None, input1 = None):
-		pipeline.ProcessObject.__init__(self, input)
-		self.setInput(input1, 1)
-		self.store = np.zeros((4,2,200))
-		self.count = 0
-		self.centers = []
-	
-	def generateData(self):
-		
-		#grabs input and converts it to binary
-		input = self.getInput(1).getData()/255
-		perimeters = self.getInput(0).getData()/255
-		
-		#label and convert to sequential indices
-		labels, count = ndimage.label(input)
-		l = numpy.unique(labels)
-		for each in range(1,l.size):
-			labels[labels == l[each]] = each
-		
-		
-		#grab slices from these labels for use in perimeters
-		slices = ndimage.find_objects(labels)
-		
-		
-		print "There are %s regions" % (count)
-		
-		# loop through each identified region
-		for i in range(1,numpy.unique(labels).size):
-		
-			#calculate the center of mass and area of the region
-			c_o_m = ndimage.measurements.center_of_mass(input,labels,i)
-			area = numpy.count_nonzero(input[slices[i-1]])
-			
-			#printing for debugging
-			print 'index = %s' % (i)
-			print 'center of mass = (%s,%s)' % (c_o_m[0], c_o_m[1])
-			print "Perimeter = %s" %(p)
-			print "Area = %s" % (area)
-			
-			
-			#calculates circularity
-			p = numpy.count_nonzero(perimeters[slices[i-1]])
+    '''
+        Calculates area, center of mass, and circularity
+         of the bacteria colonies
+    '''  
+    
+    #Constructor, regions and a mask are optional
+    def __init__(self, input = None, input1 = None):
+        pipeline.ProcessObject.__init__(self, input)
+        self.setInput(input1, 1)
+        self.store = np.zeros((4,2,200))
+        self.count = 0
+        self.centers = []
+    
+    def generateData(self):
+        
+        #grabs input and converts it to binary
+        input = self.getInput(1).getData()/255
+        perimeters = self.getInput(0).getData()/255
+        
+        #label and convert to sequential indices
+        labels, count = ndimage.label(input)
+        l = numpy.unique(labels)
+        for each in range(1,l.size):
+            labels[labels == l[each]] = each
+        
+        
+        #grab slices from these labels for use in perimeters
+        slices = ndimage.find_objects(labels)
+        
+        
+        print "There are %s regions" % (count)
+        
+        # loop through each identified region
+        for i in range(1,numpy.unique(labels).size):
+        
+            #calculate the center of mass and area of the region
+            c_o_m = ndimage.measurements.center_of_mass(input,labels,i)
+            area = numpy.count_nonzero(input[slices[i-1]])
+            
+            #printing for debugging
+            print 'index = %s' % (i)
+            print 'center of mass = (%s,%s)' % (c_o_m[0], c_o_m[1])
+            print "Perimeter = %s" %(p)
+            print "Area = %s" % (area)
+            
+            
+            #calculates circularity
+            p = numpy.count_nonzero(perimeters[slices[i-1]])
 
-			#checks to make sure perimeter is not zero
-			if p!=0:
-            	abscirc = ((p*p)/area)
-            	circularity = (4*math.pi)/abscirc
+            #checks to make sure perimeter is not zero
+            if p!=0:
+                abscirc = ((p*p)/area)
+                circularity = (4*math.pi)/abscirc
             else:
-            	circularity = 0
+                circularity = 0
 
-			
-			
-			print "Colony %s at %s has an area of %s" % (i,c_o_m,area)
-			#print "Circularity : %s " %(circularity)
-			
-			#decides which bin to store area and circularity in
-			
-			
-			
-			if count < 200:
-				#self.store[i,:,count] = metrics
-				pass
-			
-			
-		self.count += 1		 
-		self.getOutput(0).setData(input)    
+            
+            
+            print "Colony %s at %s has an area of %s" % (i,c_o_m,area)
+            #print "Circularity : %s " %(circularity)
+            
+            #decides which bin to store area and circularity in
+            
+            
+            
+            if count < 200:
+                #self.store[i,:,count] = metrics
+                pass
+            
+            
+        self.count += 1      
+        self.getOutput(0).setData(input)    
 
 
-	def setLabels(self, labels):
-		self.labels = labels
-		
-		
+    def setLabels(self, labels):
+        self.labels = labels
+        
+        
+        
 class Perimeter(pipeline.ProcessObject):
-	def __init__(self, input = None):
-		pipeline.ProcessObject.__init__(self, input)
-		self.setOutput(input, 1)
-		
-	def generateData(self):
-		input = self.getInput(0).getData()
-		tempBinary = numpy.zeros(input.shape)
-		tempBinary[input < 30] = 1
-		tempBinary[input >=30] = 0
+    def __init__(self, input = None):
+        pipeline.ProcessObject.__init__(self, input)
+        self.setOutput(input, 1)
+        
+    def generateData(self):
+        input = self.getInput(0).getData()
+        tempBinary = numpy.zeros(input.shape)
+        tempBinary[input < 30] = 1
+        tempBinary[input >=30] = 0
 
-		fill = ndimage.grey_erosion(tempBinary, size = (3,3))
-		
-		tempBinary = tempBinary - fill
-		self.getOutput(0).setData(tempBinary*255)
-		self.getOutput(1).setData(input)        
-	
-	
+        fill = ndimage.grey_erosion(tempBinary, size = (3,3))
+        
+        tempBinary = tempBinary - fill
+        self.getOutput(0).setData(tempBinary*255)
+        self.getOutput(1).setData(input)        
+    
+    
 if __name__ == "__main__":
-	parser = optparse.OptionParser()
-	parser.add_option("-p", "--path", help="the path of the image folder", default=None)
-	options, remain = parser.parse_args()
-	exts = ["bact*.raw"]
-	flat_exts = ["flat*.raw"]
-	files = [] # display images from file
-	flat_files = [] # flat-field images
-	if options.path != None:
-		# grab files into a list
-		for ext in exts:
-			files += glob.glob(os.path.join(options.path,ext))   
-		for ext in flat_exts:
-			flat_files += glob.glob(os.path.join(options.path, ext))
+    parser = optparse.OptionParser()
+    parser.add_option("-p", "--path", help="the path of the image folder", default=None)
+    options, remain = parser.parse_args()
+    exts = ["bact*.raw"]
+    flat_exts = ["flat*.raw"]
+    files = [] # display images from file
+    flat_files = [] # flat-field images
+    if options.path != None:
+        # grab files into a list
+        for ext in exts:
+            files += glob.glob(os.path.join(options.path,ext))   
+        for ext in flat_exts:
+            flat_files += glob.glob(os.path.join(options.path, ext))
 
-	files.sort()
-	flat_files.sort()
+    files.sort()
+    flat_files.sort()
 
-	# Specify dimensions all images are to be cropped to
-	# Crop to  [(ymin, ymax), (xmin, xmax)]
-	dimensions = [ (100, 920), (45, 1315) ]
+    # Specify dimensions all images are to be cropped to
+    # Crop to  [(ymin, ymax), (xmin, xmax)]
+    dimensions = [ (100, 920), (45, 1315) ]
+    
+    # Obtain the flat-field image
+    savename = "flat_field.npy"
+    if not os.path.isfile(savename):
+        flat_images = ( source.readImageFile(fn) for fn in flat_files )
+        cropped_flat_images = (crop_image(img, dimensions) for img in flat_images)
+        flat_field = avgimage.get_flat_field(cropped_flat_images, len(flat_files))
+        numpy.save(savename, flat_field)
+    else:
+        print "Loading flat field '%s'" % savename
+        flat_field = numpy.load(savename)
+        (ystart, yend), (xstart,xend) = dimensions
+        cropped_shape = ( yend - ystart, xend-xstart )
+        assert flat_field.shape == cropped_shape, ( "Flat field size differs "
+            "from image sizes. Try deleting file.")
+    #cv2.imshow("Flat field image", flat_field)
 
-	# Read in the background image
-	bgImg = source.readImageFile(files[0])
-	bgImg = (bgImg * 255.0/4095.0).astype(numpy.uint8)
-	bgImg = crop_np_image( bgImg, dimensions)
-	#cv2.imshow("bgImg", bgImg)
+    # Read in the background image, flat-field correct
+    bgImg = numpy.zeros((1036,1388,60))
+    for i in range(60):
+        cur_bgImg = source.readImageFile(files[i])
+        bgImg[:,:,i] = cur_bgImg
+        
+    std_bgImg = numpy.std(bgImg,axis=2)
+    std_bgImg = crop_image(std_bgImg, dimensions)
+    std_bgImg = scale_image(std_bgImg, numpy.float64)
+    
+    mean_bgImg = numpy.mean(bgImg,axis=2)
+    mean_bgImg = crop_image(mean_bgImg, dimensions)
+    mean_bgImg = scale_image(mean_bgImg, numpy.float64)
+    mean_bgImg *= flat_field
+    cv2.imshow("bgImg", mean_bgImg)
 
-	# Read in all images, crop them
-	fileStackReader = source.FileStackReader(files)
-	cropped_images = Cropper(fileStackReader.getOutput(), dimensions)
-	
-	# convert to 8 bit
-	eightbitimages = AffineIntensity(cropped_images.getOutput())
-	eightbitimages.setScale(255.0/4095.0)
-	
-	# Obtain the flat-field image
-	savename = "flat_field.npy"
-	if not os.path.isfile(savename):
-		flat_images = ( source.readImageFile(fn) for fn in flat_files )
-		cropped_flat_images = (crop_np_image(img, dimensions) for img in flat_images)
-		flat_field = avgimage.get_flat_field(cropped_flat_images, len(flat_files))
-		numpy.save(savename, flat_field)
-	else:
-		print "Loading flat field '%s'" % savename
-		flat_field = numpy.load(savename)
-		(ystart, yend), (xstart,xend) = dimensions
-		cropped_shape = ( yend - ystart, xend-xstart )
-		assert flat_field.shape == cropped_shape, ( "Flat field size differs "
-			"from image sizes. Try deleting file.")
-	#cv2.imshow("Flat field image", flat_field)
+    # Read in all images, crop them
+    fileStackReader = source.FileStackReader(files[60:])
+    cropped_images = ImageCorrect(fileStackReader.getOutput(), dimensions)
+    
+    # Apply flat-fielding to the images
+    corrected_images = FilterFlatField( cropped_images.getOutput(), flat_field)
 
-	# Apply flat-fielding to the images
-	corrected_images = FilterFlatField( eightbitimages.getOutput(), flat_field)
+    # Do binary segmentation
+    binarySeg = BinarySegmentation(corrected_images.getOutput(), mean_bgImg, std_bgImg, 5)
 
-	# Do binary segmentation
-	binarySeg = BinarySegmentation(corrected_images.getOutput(), bgImg)
-
-	# Get perimeter
-	perimeter = Perimeter(binarySeg.getOutput())
-	
-	# Calculate Region Properties
-	regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
-	
-	
-	# Display images
-	display1 = Display(eightbitimages.getOutput(),"Original Image")
-	display2 = Display(corrected_images.getOutput(),"Flat-fielded Image")
-	display3 = Display(binarySeg.getOutput(),"Binary Segmentation")
-	display4 = Display(perimeter.getOutput(), "perimeter")
-	
-	key = None
-	while key != 27:
-	  fileStackReader.increment()
-	  print fileStackReader.getFrameName()
-	  display1.update()
-	  display2.update()
-	  display3.update()
-	  display4.update()
-	  regProperties.update()
-	  cv2.waitKey(10)
+    # Get perimeter
+    perimeter = Perimeter(binarySeg.getOutput())
+    
+    # Calculate Region Properties
+    regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
+    
+    # Display images
+    display1 = Display(cropped_images.getOutput(),"Original Image")
+    display2 = Display(corrected_images.getOutput(),"Flat-fielded Image")
+    display3 = Display(binarySeg.getOutput(),"Binary Segmentation")
+    display4 = Display(perimeter.getOutput(), "perimeter")
+    
+    key = None
+    while key != 27:
+      fileStackReader.increment()
+      print fileStackReader.getFrameName()
+      display1.update()
+      display2.update()
+      display3.update()
+      display4.update()
+      regProperties.update()
+      cv2.waitKey(10)
