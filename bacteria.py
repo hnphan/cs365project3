@@ -160,85 +160,79 @@ class RegionProperties(pipeline.ProcessObject):
     
     def generateData(self):
         
-        if count <=200:
-			#grabs input and converts it to binary
-			input = self.getInput(1).getData()/255
-			perimeters = self.getInput(0).getData()/255
-			
-			#dividers to break the image into 6 evenly sized boxes
-			one_third = input.shape[1]/3
-			two_thirds = 2*one_third
-			half = input.shape[0]/2
-			
-			#label and convert to sequential indices
-			labels, count = ndimage.label(input)
-			l = numpy.unique(labels)
-			for each in range(1,l.size):
-				labels[labels == l[each]] = each
-			
-			
-			#grab slices from these labels for use in perimeters
-			slices = ndimage.find_objects(labels)
-			
-			
-			print "There are %s regions" % (count)
-			
-			# loop through each identified region
-			for i in range(1,numpy.unique(labels).size):
-			
-				#calculate the center of mass and area of the region
-				c_o_m = ndimage.measurements.center_of_mass(input,labels,i)
-				area = numpy.count_nonzero(input[slices[i-1]])
-				
-				#printing for debugging
-				print 'index = %s' % (i)
-				print 'center of mass = (%s,%s)' % (c_o_m[0], c_o_m[1])
-				print "Perimeter = %s" %(p)
-				print "Area = %s" % (area)
-				
-				
-				#calculates circularity
-				p = numpy.count_nonzero(perimeters[slices[i-1]])
-	
-				#checks to make sure perimeter is not zero
-				if p!=0:
-					abscirc = ((p*p)/area)
-					circularity = (4*math.pi)/abscirc
-				else:
-					circularity = 0
-	
-				metrics = numpy.array([area, circularity])
-				
-				print "Colony %s at %s has an area of %s" % (i,c_o_m,area)
-				#print "Circularity : %s " %(circularity)
-				
-				#decides which bin to store area and circularity in
-				if c_o_m[0] < half:
-					if c_o_m[1] < two_thirds:
-						bin = Dishes.upper_middle
-					else:
-						bin = Dishes.upper_right
-				else:
-					if c_o_m[1] < one_third:
-						bin = Dishes.lower_left
-					else:
-						bin = Dishes.lower_middle
-				
-				self.store[bin,:, count] = metrics
-				
-				
-			self.count += 1      
-		
-		elif count == 201:
-			#plot here
-			pass
-		
-		else:
-			pass
-			
-		
-		
-		self.getOutput(0).setData(input)    
+        if self.count <=200:
+            #grabs input and converts it to binary
+            input = self.getInput(1).getData()/255
+            perimeters = self.getInput(0).getData()/255
+            
+            #dividers to break the image into 6 evenly sized boxes
+            one_third = input.shape[1]/3
+            two_thirds = 2*one_third
+            half = input.shape[0]/2
+            
+            #label and convert to sequential indices
+            labels, count = ndimage.label(input)
+            l = numpy.unique(labels)
+            for each in range(1,l.size):
+                labels[labels == l[each]] = each
+            
+            
+            #grab slices from these labels for use in perimeters
+            slices = ndimage.find_objects(labels)
+            
+            
+            print "There are %s regions" % (count)
+            
+            # loop through each identified region
+            for i in range(1,numpy.unique(labels).size):
+            
+                #calculate the center of mass and area of the region
+                c_o_m = ndimage.measurements.center_of_mass(input,labels,i)
+                area = numpy.count_nonzero(input[slices[i-1]])
+                
+                
+                #calculates circularity
+                p = numpy.count_nonzero(perimeters[slices[i-1]])
+    
+                #checks to make sure perimeter is not zero
+                if p!=0:
+                    abscirc = ((p*p)/area)
+                    circularity = (4*math.pi)/abscirc
+                else:
+                    circularity = 0
+    
+                metrics = numpy.array([area, circularity])
+                
+                print "Colony %s at %s has an area of %s" % (i,c_o_m,area)
+                print "Circularity : %s " %(circularity)
+                
+                #decides which bin to store area and circularity in
+                if c_o_m[0] < half:
+                    if c_o_m[1] < two_thirds:
+                        bin = Dishes.upper_middle
+                    else:
+                        bin = Dishes.upper_right
+                else:
+                    if c_o_m[1] < one_third:
+                        bin = Dishes.lower_left
+                    else:
+                        bin = Dishes.lower_middle
+                
+                self.store[bin,:, self.count] = metrics
+                
+                
+            self.count += 1      
+        
+        elif self.count == 201:
+            #plot here
+            pass
+        
+        else:
+            pass
+            
+        
+        
+        self.getOutput(0).setData(input)    
 
         
         
@@ -346,7 +340,7 @@ if __name__ == "__main__":
     perimeter = Perimeter(binarySeg.getOutput())
     
     # Calculate Region Properties
-    #regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
+    regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
     
     # Display images
     display1 = Display(cropped_images.getOutput(),"Original Image")
@@ -362,5 +356,5 @@ if __name__ == "__main__":
       display2.update()
       display3.update()
       display4.update()
-      #regProperties.update()
+      regProperties.update()
       cv2.waitKey(10)
