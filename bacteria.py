@@ -29,65 +29,6 @@ import imgutil
 import pipeline
 import source
 
-class AffineIntensity(pipeline.ProcessObject):
-    '''
-    Adjusts contrast by a given scalar and calculates an offset to maintain
-    '''
-    def __init__(self, input = None):
-        pipeline.ProcessObject.__init__(self, input)
-        self.scale = 1.0
-        self.offset = 0.0
-        
-    def generateData(self):
-        input = self.getInput(0).getData()
-        
-        if input.dtype == numpy.uint8:
-            # lookup table
-            lookUp = numpy.arange(256)
-            lookUp = (lookUp * self.scale) + self.offset
-            lookUp[lookUp>255] = 255
-            lookUp[lookUp<0] = 0
-            output = lookUp[input]
-        else:
-            output = (input * self.scale) + self.offset
-            output[output>255] = 255
-            output[output<0] = 0
-            output = output.astype(numpy.uint8)
-
-        self.getOutput(0).setData(output)
-        
-    def setScale(self,scale):
-        self.scale = scale
-        self.modified()
-
-    def setOffset(self,offset):
-        self.offset = offset
-        self.modified()
-        
-    def getScale(self):
-        return self.scale
-        
-    def getOffset(self):
-        return self.offset
-        
-    def autoContrast(self):
-        input = self.getInput(0).getData()
-        Imin = input.min()
-        Imax = input.max()
-        self.scale = 255.0/(Imax-Imin)
-        self.offset = -self.scale * Imin
-        self.modified()
-
-    def setGain(self, value):
-        #input = self.getInput(0).getData()
-        Imin = -self.offset/self.scale
-        Imax = (255 - self.offset)/self.scale
-        Imid = (Imax+Imin)/2
-        self.scale = value
-        self.offset = Imid - (self.scale*255/2)
-        self.modified()
-
-
 class Display(pipeline.ProcessObject):
     
     def __init__(self, input = None, name = "pipeline"):
