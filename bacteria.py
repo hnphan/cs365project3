@@ -153,15 +153,20 @@ class RegionProperties(pipeline.ProcessObject):
     def __init__(self, input = None, input1 = None):
         pipeline.ProcessObject.__init__(self, input)
         self.setInput(input1, 1)
-        self.store = np.zeros((4,2,200))
+        self.store = numpy.zeros((4,2,200))
         self.count = 0
-        self.centers = []
+        
     
     def generateData(self):
         
         #grabs input and converts it to binary
         input = self.getInput(1).getData()/255
         perimeters = self.getInput(0).getData()/255
+        
+        #dividers to break the image into 6 evenly sized boxes
+        one_third = input.shape[1]/3
+        two_thirds = 2*one_third
+        half = input.shape[0]/2
         
         #label and convert to sequential indices
         labels, count = ndimage.label(input)
@@ -200,26 +205,29 @@ class RegionProperties(pipeline.ProcessObject):
             else:
                 circularity = 0
 
-            
+            metrics = numpy.array([area, circularity])
             
             print "Colony %s at %s has an area of %s" % (i,c_o_m,area)
             #print "Circularity : %s " %(circularity)
             
             #decides which bin to store area and circularity in
+            if c_o_m[0] < half:
+            	if c_o_m[1] < two_thirds:
+            		bin = Dishes.upper_middle
+            	else:
+            		bin = Dishes.upper_right
+            else:
+            	if c_o_m[1] < one_third:
+            		bin = Dishes.lower_left
+            	else:
+            		bin = Dishes.lower_middle
             
-            
-            
-            if count < 200:
-                #self.store[i,:,count] = metrics
-                pass
+            self.store[bin,:, count] = metrics
             
             
         self.count += 1      
         self.getOutput(0).setData(input)    
 
-
-    def setLabels(self, labels):
-        self.labels = labels
         
         
         
@@ -309,7 +317,7 @@ if __name__ == "__main__":
     perimeter = Perimeter(binarySeg.getOutput())
     
     # Calculate Region Properties
-    regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
+    #regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
     
     # Display images
     display1 = Display(cropped_images.getOutput(),"Original Image")
@@ -325,5 +333,5 @@ if __name__ == "__main__":
       display2.update()
       display3.update()
       display4.update()
-      regProperties.update()
+      #regProperties.update()
       cv2.waitKey(10)
