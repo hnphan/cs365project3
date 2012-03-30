@@ -195,7 +195,8 @@ class RegionProperties(pipeline.ProcessObject):
     def __init__(self, input = None, input1 = None):
         pipeline.ProcessObject.__init__(self, input)
         self.setInput(input1, 1)
-        self.data = numpy.zeros((6,3,200))
+        self.store = numpy.zeros((6,3,200))
+        self.count = 0
     
     def generateData(self):
         input = self.getInput(1).getData()
@@ -213,16 +214,25 @@ class RegionProperties(pipeline.ProcessObject):
             area = labels[i == labels].size
             p = plabels[i == plabels].size
             
+            print "Perimeter = %s" %(p)
+            print "Area = %s" % (area)
+            
             #checks to make sure perimeter is not zero
-            if p!=0:
-            	circularity = (4*math.pi)/((p*p)/area)
-            else:
-            	circularity = 0
+            # if p!=0:
+#             	abscirc = ((p*p)/area)
+#             	circularity = (4*math.pi)/abscirc
+#             else:
+#             	circularity = 1
+#             
+            metrics = numpy.ndarray([c_o_m, area, circularity])
             
-            metrics = (area, circularity)
-            
-            print "Colony %s at %s has an area of %s and a circularity of %s" %(i,c_o_m,area,circularity)
-        
+          	print "Colony %s at %s has an area of %s" %(i,c_o_m,area)
+        	print "Circularity : %s " %(circularity)
+        	
+        	if count < 200:
+        		self.store[i,:,count] = metrics
+        	
+        	count += 1
                  
         self.getOutput(0).setData(input)    
 
