@@ -20,5 +20,5 @@ in as a flat frame.
 Code discussion
 ---------------
 For code discussion and a complete writeup, please see [this project's
-wiki page] (https://wiki.colby.edu/display/CS365/CS365+Project+) at the
+wiki page] (https://wiki.colby.edu/display/CS365/CS365+Project+3) at the
 CS365 [course Wiki page](https://wiki.colby.edu/display/CS365/).
