@@ -300,19 +300,36 @@ if __name__ == "__main__":
     #cv2.imshow("Flat field image", flat_field)
 
     # Read in the background image, flat-field correct
-    bgImg = numpy.zeros((1036,1388,60))
-    for i in range(60):
-        cur_bgImg = source.readImageFile(files[i])
-        bgImg[:,:,i] = cur_bgImg
+    # Generate the files if one does not exist, otherwise load both from .npy's
+    std_bg_savename = "std_bgImg.npy"
+    mean_bg_savename = "mean_bgImg.npy"
+
+    if not (os.path.isfile(std_bg_savename) and os.path.isfile(mean_bg_savename)):
+        print "Generating '%s' and '%s'" % (std_bg_savename, mean_bg_savename)
+
+        bgImg = numpy.zeros((1036,1388,60))
+        for i in range(60):
+            cur_bgImg = source.readImageFile(files[i])
+            bgImg[:,:,i] = cur_bgImg
+
+        std_bgImg = numpy.std(bgImg,axis=2)
+        std_bgImg = crop_image(std_bgImg, dimensions)
+        std_bgImg = scale_image(std_bgImg, numpy.float64)
         
-    std_bgImg = numpy.std(bgImg,axis=2)
-    std_bgImg = crop_image(std_bgImg, dimensions)
-    std_bgImg = scale_image(std_bgImg, numpy.float64)
-    
-    mean_bgImg = numpy.mean(bgImg,axis=2)
-    mean_bgImg = crop_image(mean_bgImg, dimensions)
-    mean_bgImg = scale_image(mean_bgImg, numpy.float64)
-    mean_bgImg *= flat_field
+        mean_bgImg = numpy.mean(bgImg,axis=2)
+        mean_bgImg = crop_image(mean_bgImg, dimensions)
+        mean_bgImg = scale_image(mean_bgImg, numpy.float64)
+        mean_bgImg *= flat_field
+
+        print "Saving to file..."
+        numpy.save(std_bg_savename, std_bgImg)
+        numpy.save(mean_bg_savename, mean_bgImg)
+    else:
+        print("Loading saved backround images '%s' and '%s'" %
+            (std_bg_savename, mean_bg_savename))
+        std_bgImg = numpy.load(std_bg_savename)
+        mean_bgImg = numpy.load(mean_bg_savename)
+        
     cv2.imshow("bgImg", mean_bgImg)
 
     # Read in all images, crop them
