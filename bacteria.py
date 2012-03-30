@@ -307,8 +307,8 @@ if __name__ == "__main__":
     else:
         print("Loading saved backround images '%s' and '%s'" %
             (std_bg_savename, mean_bg_savename))
-        std_bgImg = (std_bg_savename)
-        mean_bgImg = (mean_bg_savename)
+        std_bgImg = numpy.load(std_bg_savename)
+        mean_bgImg = numpy.load(mean_bg_savename)
         
     cv2.imshow("bgImg", mean_bgImg)
 
