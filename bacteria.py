@@ -30,6 +30,9 @@ import imgutil
 import pipeline
 import source
 
+class Dishes:
+    upper_middle, upper_right, lower_left, lower_middle = range(4)
+
 class Display(pipeline.ProcessObject):
     
     def __init__(self, input = None, name = "pipeline"):
@@ -154,13 +157,13 @@ class RegionProperties(pipeline.ProcessObject):
     def __init__(self, input = None, input1 = None):
         pipeline.ProcessObject.__init__(self, input)
         self.setInput(input1, 1)
-        self.store = numpy.zeros((4,2,200))
+        self.store = numpy.zeros((4,2,140))
         self.count = 0
         
     
     def generateData(self):
         
-        if self.count <=200:
+        if self.count <140:
             #grabs input and converts it to binary
             input = self.getInput(1).getData()/255
             perimeters = self.getInput(0).getData()/255
@@ -204,28 +207,68 @@ class RegionProperties(pipeline.ProcessObject):
                 metrics = numpy.array([area, circularity])
                 
                 print "Colony %s at %s has an area of %s" % (i,c_o_m,area)
-                print "Circularity : %s " %(circularity)
+                #print "Circularity : %s " %(circularity)
                 
                 #decides which bin to store area and circularity in
                 if c_o_m[0] < half:
                     if c_o_m[1] < two_thirds:
-                        bin = Dishes.upper_middle
+                        box = Dishes.upper_middle
                     else:
-                        bin = Dishes.upper_right
+                        box = Dishes.upper_right
                 else:
                     if c_o_m[1] < one_third:
-                        bin = Dishes.lower_left
+                        box = Dishes.lower_left
+                    elif c_o_m[1] < two_thirds:
+                        box = Dishes.lower_middle
                     else:
-                        bin = Dishes.lower_middle
+                        box = 5
                 
-                self.store[bin,:, self.count] = metrics
+                if box < 5:
+                	self.store[box,:, self.count] = metrics
                 
                 
             self.count += 1      
         
-        elif self.count == 201:
-            #plot here
-            pass
+        elif self.count == 140:
+            #plot area
+            time = range(60,200)
+            pylab.subplot(211)
+            #plotting area against time
+            area_um = self.store[Dishes.upper_middle,0,:]
+            area_ur = self.store[Dishes.upper_right,0,:]
+            area_ll = self.store[Dishes.lower_left,0,:]
+            area_lm = self.store[Dishes.lower_middle,0,:]
+            
+            p1, = pylab.plot(time,area_um,'r')
+            p2, = pylab.plot(time , area_ur, 'g')
+            p3, = pylab.plot(time, area_ll, 'b')
+            p4, = pylab.plot(time, area_lm, 'k')
+            pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"], loc=1)
+            #pylab.plot(time,area_um,'r', time , area_ur, 'g', 
+            #		time, area_ll, 'b',time, area_lm, 'k')
+            pylab.title('Area Against Time')
+            pylab.xlabel('Time (Frames)')
+            pylab.ylabel('Area (Pixels)')
+            #pylab.show()
+            
+            pylab.subplot(212)
+            circularity_um = self.store[Dishes.upper_middle,1,:]
+            circularity_ur = self.store[Dishes.upper_right,1,:]
+            circularity_ll = self.store[Dishes.lower_left,1,:]
+            circularity_lm = self.store[Dishes.lower_middle,1,:]
+            
+            p1, = pylab.plot(time,circularity_um,'r')
+            p2, = pylab.plot(time , circularity_ur, 'g')
+            p3, = pylab.plot(time, circularity_ll, 'b')
+            p4, = pylab.plot(time, circularity_lm, 'k')
+            #pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"])
+            #pylab.plot(time,circularity_um,'r', time , circularity_ur, 'g', 
+            #		time, circularity_ll, 'b',time, circularity_lm, 'k')
+            pylab.title('circularity Against Time')
+            pylab.xlabel('Time (Frames)')
+            pylab.ylabel('circularity (Pixels)')
+            
+            pylab.show()
         
         else:
             pass
@@ -238,21 +281,19 @@ class RegionProperties(pipeline.ProcessObject):
         
         
 class Perimeter(pipeline.ProcessObject):
-    def __init__(self, input = None):
+    def __init__(self, input = None, orgImg = None):
         pipeline.ProcessObject.__init__(self, input)
         self.setOutput(input, 1)
         
     def generateData(self):
-        input = self.getInput(0).getData()
-        tempBinary = numpy.zeros(input.shape)
-        tempBinary[input < 30] = 1
-        tempBinary[input >=30] = 0
-
-        fill = ndimage.grey_erosion(tempBinary, size = (3,3))
+        input = self.getInput(0).getData()/255
         
-        tempBinary = tempBinary - fill
-        self.getOutput(0).setData(tempBinary*255)
-        self.getOutput(1).setData(input)        
+
+        fill = ndimage.grey_erosion(input, size = (3,3))
+        
+        output = input - fill
+        self.getOutput(0).setData(output*255)
+        self.getOutput(1).setData(input*255)        
     
     
 if __name__ == "__main__":
@@ -325,7 +366,7 @@ if __name__ == "__main__":
         std_bgImg = numpy.load(std_bg_savename)
         mean_bgImg = numpy.load(mean_bg_savename)
         
-    cv2.imshow("bgImg", mean_bgImg)
+    #cv2.imshow("bgImg", mean_bgImg)
 
     # Read in all images, crop them
     fileStackReader = source.FileStackReader(files[60:])
