@@ -52,27 +52,30 @@ class BinarySegmentation(pipeline.ProcessObject):
     '''
     Segments the bacteria colonies in the images.
     '''
-    def __init__(self, input = None, bgImg = None):
+    def __init__(self, input = None, bgImg = None, std_bgImg = None, alpha = None):
         pipeline.ProcessObject.__init__(self, input)
         self.bgImg = bgImg
         self.binary = numpy.zeros(bgImg.shape)
+        self.std_bgImg = std_bgImg
+        self.alpha = alpha
     
     def generateData(self):
         input = self.getInput(0).getData()
         #print "input: ",input[465,485]
         #print "bg: ", self.bgImg[465,485]
-        output = (input.astype(numpy.float) - self.bgImg.astype(numpy.float)) #background subtraction
+        #background subtraction
+        output = (input.astype(numpy.float) - self.bgImg.astype(numpy.float))
         #output = output + 40
         #print "output: ", output[694,713]
-
+        
+        threshold = self.alpha * std_bgImg
+        #print threshold[100:200,100:200]
         tempBinary = numpy.zeros(output.shape)
-        tempBinary[output < 10] = 1
-        #tempBinary[output >= 30] = 0
-
-        tempBinary = ndimage.grey_erosion(tempBinary, size = (3,3))
-        tempBinary = ndimage.grey_erosion(tempBinary, size = (3,3))
-        tempBinary = ndimage.grey_dilation(tempBinary, size = (3,3))
-
+        #tempBinary[output > threshold] = 1
+        tempBinary[output < -5] = 1
+        
+        tempBinary = ndimage.morphology.binary_opening(tempBinary, iterations = 5)
+        
         self.binary = numpy.logical_or(self.binary, tempBinary).astype(numpy.uint8)
         self.getOutput(0).setData(self.binary*255)
 
@@ -158,7 +161,7 @@ class RegionProperties(pipeline.ProcessObject):
         labels, count = ndimage.label(input)
         plabels, pcount = ndimage.label(perimeters)
         slices = ndimage.find_objects(labels)
-        
+        '''
         print "There are %s regions" % (count)
         
         for i in numpy.unique(labels):
@@ -177,7 +180,7 @@ class RegionProperties(pipeline.ProcessObject):
             metrics = (area, circularity)
             
             print "Colony %s at %s has an area of %s and a circularity of %s" %(i,c_o_m,area,circularity)
-        
+        '''
                  
         self.getOutput(0).setData(input)    
 
@@ -243,21 +246,30 @@ if __name__ == "__main__":
     #cv2.imshow("Flat field image", flat_field)
 
     # Read in the background image, flat-field correct
-    bgImg = source.readImageFile(files[0])
-    bgImg = scale_image(bgImg, numpy.uint8)
-    bgImg = crop_image( bgImg, dimensions)
-    bgImg *= flat_field
-    cv2.imshow("bgImg", bgImg)
+    bgImg = numpy.zeros((1036,1388,60))
+    for i in range(60):
+        cur_bgImg = source.readImageFile(files[i])
+        bgImg[:,:,i] = cur_bgImg
+        
+    std_bgImg = numpy.std(bgImg,axis=2)
+    std_bgImg = crop_image(std_bgImg, dimensions)
+    std_bgImg = scale_image(std_bgImg, numpy.float64)
+    
+    mean_bgImg = numpy.mean(bgImg,axis=2)
+    mean_bgImg = crop_image(mean_bgImg, dimensions)
+    mean_bgImg = scale_image(mean_bgImg, numpy.float64)
+    mean_bgImg *= flat_field
+    cv2.imshow("bgImg", mean_bgImg)
 
     # Read in all images, crop them
-    fileStackReader = source.FileStackReader(files)
+    fileStackReader = source.FileStackReader(files[60:])
     cropped_images = ImageCorrect(fileStackReader.getOutput(), dimensions)
     
     # Apply flat-fielding to the images
     corrected_images = FilterFlatField( cropped_images.getOutput(), flat_field)
 
     # Do binary segmentation
-    binarySeg = BinarySegmentation(corrected_images.getOutput(), bgImg)
+    binarySeg = BinarySegmentation(corrected_images.getOutput(), mean_bgImg, std_bgImg, 5)
 
     # Get perimeter
     perimeter = Perimeter(binarySeg.getOutput())
