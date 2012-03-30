@@ -155,13 +155,14 @@ class FilterFlatField(pipeline.ProcessObject):
         self.getOutput(0).setData(output)
 
 
-class Cropper(pipeline.ProcessObject):
+class ImageCorrect(pipeline.ProcessObject):
     """
-        Crops the input stream to the given dimensions (see crop_np_image)
+        Corrects the image by cropping its relevant region, converting the dtype.
     """
     
-    def __init__(self, input = None, crop_dimensions = None):
+    def __init__(self, input=None, crop_dimensions=None, dtype=numpy.float64):
         pipeline.ProcessObject.__init__(self, input)
+        self.dtype = dtype
         if crop_dimensions != None:
             self.setCropDimensions(crop_dimensions)
         
@@ -170,11 +171,16 @@ class Cropper(pipeline.ProcessObject):
         self.modified()
 
     def generateData(self):
+        """
+            Crop the image to the desired dimensions and change the type
+        """
         inpt = self.getInput(0).getData()
-        cropped_image = crop_np_image(inpt, self.crop_dimensions)
-        self.getOutput(0).setData(cropped_image)
+        cropped_image = crop_image(inpt, self.crop_dimensions)
 
-def crop_np_image( input_image, crop_dimensions ):
+        scaled_cropped = scale_image(cropped_image, self.dtype)
+        self.getOutput(0).setData(scaled_cropped)
+
+def crop_image( input_image, crop_dimensions ):
     """
         Crops an input numpy image to the given dimensions
 
@@ -183,6 +189,14 @@ def crop_np_image( input_image, crop_dimensions ):
     (ystart, yend), (xstart,xend) = crop_dimensions
     output = input_image[ystart : yend, xstart : xend]
     return output
+
+def scale_image( input_image, dtype):
+    """
+        Scale the input image to its max value, assign the given type
+    """
+    input_image *= (255.0 / input_image.max())
+    input_image = input_image.astype(dtype)
+    return input_image
 
 
 class RegionProperties(pipeline.ProcessObject):
@@ -270,26 +284,12 @@ if __name__ == "__main__":
     # Specify dimensions all images are to be cropped to
     # Crop to  [(ymin, ymax), (xmin, xmax)]
     dimensions = [ (100, 920), (45, 1315) ]
-
-    # Read in the background image
-    bgImg = source.readImageFile(files[0])
-    bgImg = (bgImg * 255.0/4095.0).astype(numpy.uint8)
-    bgImg = crop_np_image( bgImg, dimensions)
-    #cv2.imshow("bgImg", bgImg)
-
-    # Read in all images, crop them
-    fileStackReader = source.FileStackReader(files)
-    cropped_images = Cropper(fileStackReader.getOutput(), dimensions)
-    
-    # convert to 8 bit
-    eightbitimages = AffineIntensity(cropped_images.getOutput())
-    eightbitimages.setScale(255.0/4095.0)
     
     # Obtain the flat-field image
     savename = "flat_field.npy"
     if not os.path.isfile(savename):
         flat_images = ( source.readImageFile(fn) for fn in flat_files )
-        cropped_flat_images = (crop_np_image(img, dimensions) for img in flat_images)
+        cropped_flat_images = (crop_image(img, dimensions) for img in flat_images)
         flat_field = avgimage.get_flat_field(cropped_flat_images, len(flat_files))
         numpy.save(savename, flat_field)
     else:
@@ -301,8 +301,19 @@ if __name__ == "__main__":
             "from image sizes. Try deleting file.")
     #cv2.imshow("Flat field image", flat_field)
 
+    # Read in the background image, flat-field correct
+    bgImg = source.readImageFile(files[0])
+    bgImg = scale_image(bgImg, numpy.uint8)
+    bgImg = crop_image( bgImg, dimensions)
+    bgImg *= flat_field
+    cv2.imshow("bgImg", bgImg)
+
+    # Read in all images, crop them
+    fileStackReader = source.FileStackReader(files)
+    cropped_images = ImageCorrect(fileStackReader.getOutput(), dimensions)
+    
     # Apply flat-fielding to the images
-    corrected_images = FilterFlatField( eightbitimages.getOutput(), flat_field)
+    corrected_images = FilterFlatField( cropped_images.getOutput(), flat_field)
 
     # Do binary segmentation
     binarySeg = BinarySegmentation(corrected_images.getOutput(), bgImg)
@@ -313,9 +324,8 @@ if __name__ == "__main__":
     # Calculate Region Properties
     regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
     
-    
     # Display images
-    display1 = Display(eightbitimages.getOutput(),"Original Image")
+    display1 = Display(cropped_images.getOutput(),"Original Image")
     display2 = Display(corrected_images.getOutput(),"Flat-fielded Image")
     display3 = Display(binarySeg.getOutput(),"Binary Segmentation")
     display4 = Display(perimeter.getOutput(), "perimeter")
