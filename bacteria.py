@@ -287,8 +287,9 @@ if __name__ == "__main__":
     if not (os.path.isfile(std_bg_savename) and os.path.isfile(mean_bg_savename)):
         print "Generating '%s' and '%s'" % (std_bg_savename, mean_bg_savename)
 
-        bgImg = numpy.zeros((1036,1388,60))
-        for i in range(60):
+        num_bg_images = 60
+        bgImg = numpy.zeros((1036, 1388, num_bg_images))
+        for i in range(num_bg_images):
             cur_bgImg = source.readImageFile(files[i])
             bgImg[:,:,i] = cur_bgImg
 
