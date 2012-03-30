@@ -121,12 +121,12 @@ class BinarySegmentation(pipeline.ProcessObject):
         #print "input: ",input[465,485]
         #print "bg: ", self.bgImg[465,485]
         output = (input.astype(numpy.float) - self.bgImg.astype(numpy.float)) #background subtraction
-        output = output + 40
+        #output = output + 40
         #print "output: ", output[694,713]
 
         tempBinary = numpy.zeros(output.shape)
-        tempBinary[output < 30] = 1
-        tempBinary[output >= 30] = 0
+        tempBinary[output < 10] = 1
+        #tempBinary[output >= 30] = 0
 
         tempBinary = ndimage.grey_erosion(tempBinary, size = (3,3))
         tempBinary = ndimage.grey_erosion(tempBinary, size = (3,3))
