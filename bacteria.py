@@ -3,7 +3,7 @@
 # David Cain
 # Hieu Phan
 # Justin Sperry
-# 2012-03-29
+# 2012-03-30
 # CS365, Brian Eastwood
 
 '''
@@ -14,7 +14,6 @@ Created on Feb 20, 2012
 
 import math
 import os
-import shelve
 
 from scipy import ndimage
 import cv
@@ -25,8 +24,6 @@ import optparse
 import pylab
 
 import avgimage
-import FirewireVideo
-import imgutil
 import pipeline
 import source
 
