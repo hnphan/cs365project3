@@ -29,6 +29,9 @@ import imgutil
 import pipeline
 import source
 
+class Dishes:
+	upper_middle, upper_right, lower_left, lower_middle = range(4)
+
 class AffineIntensity(pipeline.ProcessObject):
 	'''
 	Adjusts contrast by a given scalar and calculates an offset to maintain
@@ -106,6 +109,8 @@ class Display(pipeline.ProcessObject):
 		
 		cv2.imshow(self.name, input.astype(numpy.uint8))        
 
+
+	
 
 class BinarySegmentation(pipeline.ProcessObject):
 	'''
@@ -195,8 +200,9 @@ class RegionProperties(pipeline.ProcessObject):
 	def __init__(self, input = None, input1 = None):
 		pipeline.ProcessObject.__init__(self, input)
 		self.setInput(input1, 1)
-		self.store = numpy.zeros((6,4,200), dtype = 'float32')
+		self.store = np.zeros((4,2,200))
 		self.count = 0
+		self.centers = []
 	
 	def generateData(self):
 		
@@ -207,8 +213,8 @@ class RegionProperties(pipeline.ProcessObject):
 		#label and convert to sequential indices
 		labels, count = ndimage.label(input)
 		l = numpy.unique(labels)
-		for each in range(l.size):
-			labels[labels == l[each]]
+		for each in range(1,l.size):
+			labels[labels == l[each]] = each
 		
 		
 		#grab slices from these labels for use in perimeters
@@ -219,35 +225,43 @@ class RegionProperties(pipeline.ProcessObject):
 		
 		# loop through each identified region
 		for i in range(1,numpy.unique(labels).size):
-			
+		
+			#calculate the center of mass and area of the region
 			c_o_m = ndimage.measurements.center_of_mass(input,labels,i)
+			area = numpy.count_nonzero(input[slices[i-1]])
 			
-			area = labels[i == labels].size
-			p = perimeters[].size
+			#printing for debugging
 			print 'index = %s' % (i)
 			print 'center of mass = (%s,%s)' % (c_o_m[0], c_o_m[1])
 			print "Perimeter = %s" %(p)
 			print "Area = %s" % (area)
 			
-			#checks to make sure perimeter is not zero
-			# if p!=0:
-#             	abscirc = ((p*p)/area)
-#             	circularity = (4*math.pi)/abscirc
-#             else:
-#             	circularity = 1
+			
+			#calculates circularity
+			p = numpy.count_nonzero(perimeters[slices[i-1]])
 
-			circularity = 1
-			metrics = numpy.ndarray([c_o_m[0],c_o_m[1], area, circularity])
+			#checks to make sure perimeter is not zero
+			if p!=0:
+            	abscirc = ((p*p)/area)
+            	circularity = (4*math.pi)/abscirc
+            else:
+            	circularity = 0
+
+			
 			
 			print "Colony %s at %s has an area of %s" % (i,c_o_m,area)
 			#print "Circularity : %s " %(circularity)
+			
+			#decides which bin to store area and circularity in
+			
+			
 			
 			if count < 200:
 				#self.store[i,:,count] = metrics
 				pass
 			
-			count += 1
-				 
+			
+		self.count += 1		 
 		self.getOutput(0).setData(input)    
 
 
