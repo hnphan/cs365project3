@@ -278,10 +278,28 @@ class RegionProperties(pipeline.ProcessObject):
         self.getOutput(0).setData(input)    
 
         
-        
+class ColonyVisualize(pipeline.ProcessObject):
+	'''
+	Visualize the detected colony region by drawing red borders
+	'''
+	def __init__(self, input = None, orgImg = None):
+		pipeline.ProcessObject.__init__(self, input)
+		self.setInput(orgImg,1)
+	
+	def generateData(self):
+		input = self.getInput(0).getData()
+		orgImg = self.getInput(1).getData()
+		output = numpy.zeros((input.shape[0],input.shape[1],3))
+		output[...,0] = orgImg
+		output[...,1] = orgImg
+		output[...,2] = orgImg
+		output[...,0][input>0] = 150
+		self.getOutput(0).setData(output)
+
+
         
 class Perimeter(pipeline.ProcessObject):
-    def __init__(self, input = None, orgImg = None):
+    def __init__(self, input = None):
         pipeline.ProcessObject.__init__(self, input)
         self.setOutput(input, 1)
         
@@ -384,11 +402,14 @@ if __name__ == "__main__":
     # Calculate Region Properties
     regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
     
+    # Visualize colonies
+    visualColonies = ColonyVisualize(perimeter.getOutput(0), corrected_images.getOutput())
+    
     # Display images
     display1 = Display(cropped_images.getOutput(),"Original Image")
     display2 = Display(corrected_images.getOutput(),"Flat-fielded Image")
     display3 = Display(binarySeg.getOutput(),"Binary Segmentation")
-    display4 = Display(perimeter.getOutput(), "perimeter")
+    display4 = Display(visualColonies.getOutput(), "Colony Visualization")
     
     key = None
     while key != 27:
