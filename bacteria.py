@@ -68,18 +68,17 @@ class BinarySegmentation(pipeline.ProcessObject):
         self.alpha = alpha
     
     def generateData(self):
+        """
+            Perform background subtraction on the image, segment the
+            bacteria colonies (foreground) from the background data.
+        """
         input = self.getInput(0).getData()
-        #print "input: ",input[465,485]
-        #print "bg: ", self.bgImg[465,485]
         #background subtraction
         output = (input.astype(numpy.float) - self.bgImg.astype(numpy.float))
-        #output = output + 40
-        #print "output: ", output[694,713]
         
-        threshold = self.alpha * std_bgImg
+        #threshold = self.alpha * std_bgImg
         #print threshold[100:200,100:200]
         tempBinary = numpy.zeros(output.shape)
-        #tempBinary[output > threshold] = 1
         tempBinary[output < -5] = 1
         
         tempBinary = ndimage.morphology.binary_opening(tempBinary, iterations = 5)
