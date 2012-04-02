@@ -306,13 +306,14 @@ class Perimeter(pipeline.ProcessObject):
         self.getOutput(1).setData(input*255)        
     
     
-if __name__ == "__main__":
+def main():
     """
-        Given a path to the image folder, it performs all the operations
-        on the bacteria colony data:
+        Given a path to the image folder, perform all the operations on
+        the bacteria colony data:
            - flat fielding
            - binary segmentation of bacteria
            - calculating and displaying properties of the colonies 
+           - obtaining and displaying the perimeter of bacteria colonies
     """
 
     # Take the path to the image folder, obtain lists of the filenames
@@ -352,7 +353,6 @@ if __name__ == "__main__":
         cropped_shape = ( yend - ystart, xend-xstart )
         assert flat_field.shape == cropped_shape, ( "Flat field size differs "
             "from image sizes. Try deleting file.")
-    #cv2.imshow("Flat field image", flat_field)
 
     # Read in the background image, flat-field correct
     # Generate the files if one does not exist, otherwise load from .npy's
@@ -385,8 +385,6 @@ if __name__ == "__main__":
             (std_bg_savename, mean_bg_savename))
         std_bgImg = numpy.load(std_bg_savename)
         mean_bgImg = numpy.load(mean_bg_savename)
-        
-    #cv2.imshow("bgImg", mean_bgImg)
 
     # Read in all images, crop them
     fileStackReader = source.FileStackReader(files[60:])
@@ -423,3 +421,6 @@ if __name__ == "__main__":
           window.update()
       regProperties.update()
       cv2.waitKey(10)
+
+if __name__ == "__main__":
+    main()
