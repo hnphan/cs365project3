@@ -301,6 +301,15 @@ class Perimeter(pipeline.ProcessObject):
     
     
 if __name__ == "__main__":
+    """
+        Given a path to the image folder, it performs all the operations
+        on the bacteria colony data:
+           - flat fielding
+           - binary segmentation of bacteria
+           - calculating and displaying properties of the colonies 
+    """
+
+    # Take the path to the image folder, obtain lists of the filenames
     parser = optparse.OptionParser()
     parser.add_option("-p", "--path", help="the path of the image folder", default=None)
     options, remain = parser.parse_args()
@@ -314,7 +323,6 @@ if __name__ == "__main__":
             files += glob.glob(os.path.join(options.path,ext))   
         for ext in flat_exts:
             flat_files += glob.glob(os.path.join(options.path, ext))
-
     files.sort()
     flat_files.sort()
 
@@ -322,7 +330,9 @@ if __name__ == "__main__":
     # Crop to  [(ymin, ymax), (xmin, xmax)]
     dimensions = [ (100, 920), (45, 1315) ]
     
-    # Obtain the flat-field image
+    # Obtain the flat-field image. If a file exists by the given
+    # savename, load the data in. Otherwise, generate the image from the
+    # flat field frames.
     savename = "flat_field.npy"
     if not os.path.isfile(savename):
         flat_images = ( source.readImageFile(fn) for fn in flat_files )
@@ -339,7 +349,7 @@ if __name__ == "__main__":
     #cv2.imshow("Flat field image", flat_field)
 
     # Read in the background image, flat-field correct
-    # Generate the files if one does not exist, otherwise load both from .npy's
+    # Generate the files if one does not exist, otherwise load from .npy's
     std_bg_savename = "std_bgImg.npy"
     mean_bg_savename = "mean_bgImg.npy"
 
@@ -385,22 +395,25 @@ if __name__ == "__main__":
     # Get perimeter
     perimeter = Perimeter(binarySeg.getOutput())
     
-    # Calculate Region Properties
+    # Calculate region properties
     regProperties = RegionProperties(perimeter.getOutput(0), perimeter.getOutput(1))
     
-    # Display images
-    display1 = Display(cropped_images.getOutput(),"Original Image")
-    display2 = Display(corrected_images.getOutput(),"Flat-fielded Image")
-    display3 = Display(binarySeg.getOutput(),"Binary Segmentation")
-    display4 = Display(perimeter.getOutput(), "perimeter")
+    # Display generated images
+    cropped_display = Display(cropped_images.getOutput(),"Original Image")
+    flat_display = Display(corrected_images.getOutput(),"Flat-fielded Image")
+    seg_display = Display(binarySeg.getOutput(),"Binary Segmentation")
+    perimeter_display = Display(perimeter.getOutput(), "perimeter")
+
+    display_windows = [cropped_display, flat_display, seg_display,
+            perimeter_display]
     
+    # Iterate through each frame, displaying different windows for each
+    # part of the process.
     key = None
     while key != 27:
       fileStackReader.increment()
       print fileStackReader.getFrameName()
-      display1.update()
-      display2.update()
-      display3.update()
-      display4.update()
+      for window in display_windows:
+          window.update()
       regProperties.update()
       cv2.waitKey(10)
