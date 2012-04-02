@@ -34,6 +34,7 @@ class Dishes:
     """
     upper_middle, upper_right, lower_left, lower_middle = range(4)
 
+
 class Display(pipeline.ProcessObject):
     """
         Pipeline object to display the numpy image in a CV window
@@ -54,6 +55,7 @@ class Display(pipeline.ProcessObject):
             input = input[..., ::-1]
         
         cv2.imshow(self.name, input.astype(numpy.uint8))        
+
 
 class ImageCorrect(pipeline.ProcessObject):
     """
@@ -306,9 +308,9 @@ class RegionProperties(pipeline.ProcessObject):
 
         
 class ColonyVisualize(pipeline.ProcessObject):
-	'''
-	Visualize the detected colony region by drawing red borders
-	'''
+	"""
+        Visualize the detected colony region by drawing red borders
+	"""
 	def __init__(self, input = None, orgImg = None):
 		pipeline.ProcessObject.__init__(self, input)
 		self.setInput(orgImg,1)
