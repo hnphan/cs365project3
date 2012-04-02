@@ -164,7 +164,7 @@ class Perimeter(pipeline.ProcessObject):
         Obtain the perimeter of the bacteria colonies, to be used in
         calculating region properties data
     """
-    def __init__(self, input = None, orgImg = None):
+    def __init__(self, input=None):
         pipeline.ProcessObject.__init__(self, input)
         self.setOutput(input, 1)
         
