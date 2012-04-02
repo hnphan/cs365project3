@@ -28,9 +28,16 @@ import pipeline
 import source
 
 class Dishes:
+    """
+        Mimics an enumerated type to store the different petri dishes
+        with bacteria colonies.
+    """
     upper_middle, upper_right, lower_left, lower_middle = range(4)
 
 class Display(pipeline.ProcessObject):
+    """
+        Pipeline object to display the numpy image in a CV window
+    """
     
     def __init__(self, input = None, name = "pipeline"):
         pipeline.ProcessObject.__init__(self, input)
@@ -50,9 +57,9 @@ class Display(pipeline.ProcessObject):
 
 
 class BinarySegmentation(pipeline.ProcessObject):
-    '''
-    Segments the bacteria colonies in the images.
-    '''
+    """
+        Segments the bacteria colonies in the images.
+    """
     def __init__(self, input = None, bgImg = None, std_bgImg = None, alpha = None):
         pipeline.ProcessObject.__init__(self, input)
         self.bgImg = bgImg
@@ -112,6 +119,11 @@ class ImageCorrect(pipeline.ProcessObject):
             self.setCropDimensions(crop_dimensions)
         
     def setCropDimensions(self, crop_dimensions):
+        """
+            Sets the crop dimensions to apply when generating the image.
+
+            crop_dimensions: [(ystart,yend), (xstart,xend)]
+        """
         self.crop_dimensions = crop_dimensions
         self.modified()
 
@@ -127,8 +139,9 @@ class ImageCorrect(pipeline.ProcessObject):
 
 def crop_image( input_image, crop_dimensions ):
     """
-        Crops an input numpy image to the given dimensions
+        Crops an input numpy image to the given dimensions.
 
+        input_image: a numpy image
         crop_dimensions: [(ystart,yend), (xstart,xend)]
     """
     (ystart, yend), (xstart,xend) = crop_dimensions
@@ -138,6 +151,9 @@ def crop_image( input_image, crop_dimensions ):
 def scale_image( input_image, dtype):
     """
         Scale the input image to its max value, assign the given type
+
+        input_image: a numpy image
+        dtype: a numpy type (e.g. numpy.float64)
     """
     input_image *= (255.0 / input_image.max())
     input_image = input_image.astype(dtype)
@@ -145,10 +161,10 @@ def scale_image( input_image, dtype):
 
 
 class RegionProperties(pipeline.ProcessObject):
-    '''
-        Calculates area, center of mass, and circularity
-         of the bacteria colonies
-    '''  
+    """
+        Calculates area, center of mass, and circularity of the bacteria
+        colonies.
+    """  
     
     #Constructor, regions and a mask are optional
     def __init__(self, input = None, input1 = None):
@@ -156,11 +172,10 @@ class RegionProperties(pipeline.ProcessObject):
         self.setInput(input1, 1)
         self.store = numpy.zeros((4,2,140))
         self.count = 0
-        
     
     def generateData(self):
         
-        if self.count <140:
+        if self.count <140: # iterate through the 140 data slides
             #grabs input and converts it to binary
             input = self.getInput(1).getData()/255
             perimeters = self.getInput(0).getData()/255
@@ -180,16 +195,13 @@ class RegionProperties(pipeline.ProcessObject):
             #grab slices from these labels for use in perimeters
             slices = ndimage.find_objects(labels)
             
-            
             print "There are %s regions" % (count)
-            
             # loop through each identified region
             for i in range(1,numpy.unique(labels).size):
             
                 #calculate the center of mass and area of the region
                 c_o_m = ndimage.measurements.center_of_mass(input,labels,i)
                 area = numpy.count_nonzero(input[slices[i-1]])
-                
                 
                 #calculates circularity
                 p = numpy.count_nonzero(perimeters[slices[i-1]])
@@ -226,7 +238,8 @@ class RegionProperties(pipeline.ProcessObject):
                 
             self.count += 1      
         
-        elif self.count == 140:
+        # When finished iterating through the slides, generate and plot data
+        elif self.count == 140: 
             #plot area
             time = range(60,200)
             pylab.subplot(211)
@@ -269,12 +282,8 @@ class RegionProperties(pipeline.ProcessObject):
         
         else:
             pass
-            
-        
         
         self.getOutput(0).setData(input)    
-
-        
         
         
 class Perimeter(pipeline.ProcessObject):
@@ -284,8 +293,6 @@ class Perimeter(pipeline.ProcessObject):
         
     def generateData(self):
         input = self.getInput(0).getData()/255
-        
-
         fill = ndimage.grey_erosion(input, size = (3,3))
         
         output = input - fill
