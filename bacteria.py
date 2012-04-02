@@ -39,7 +39,7 @@ class Display(pipeline.ProcessObject):
         Pipeline object to display the numpy image in a CV window
     """
     
-    def __init__(self, input = None, name = "pipeline"):
+    def __init__(self, input=None, name="pipeline"):
         pipeline.ProcessObject.__init__(self, input)
         cv2.namedWindow(name, cv.CV_WINDOW_NORMAL)
         self.name = name
@@ -54,56 +54,6 @@ class Display(pipeline.ProcessObject):
             input = input[..., ::-1]
         
         cv2.imshow(self.name, input.astype(numpy.uint8))        
-
-
-class BinarySegmentation(pipeline.ProcessObject):
-    """
-        Segments the bacteria colonies in the images.
-    """
-    def __init__(self, input = None, bgImg = None, std_bgImg = None, alpha = None):
-        pipeline.ProcessObject.__init__(self, input)
-        self.bgImg = bgImg
-        self.binary = numpy.zeros(bgImg.shape)
-        self.std_bgImg = std_bgImg
-        self.alpha = alpha
-    
-    def generateData(self):
-        """
-            Perform background subtraction on the image, segment the
-            bacteria colonies (foreground) from the background data.
-        """
-        input = self.getInput(0).getData()
-        #background subtraction
-        output = (input.astype(numpy.float) - self.bgImg.astype(numpy.float))
-        
-        #threshold = self.alpha * std_bgImg
-        #print threshold[100:200,100:200]
-        tempBinary = numpy.zeros(output.shape)
-        tempBinary[output < -5] = 1
-        
-        tempBinary = ndimage.morphology.binary_opening(tempBinary, iterations = 5)
-        
-        self.binary = numpy.logical_or(self.binary, tempBinary).astype(numpy.uint8)
-        self.getOutput(0).setData(self.binary*255)
-
-class FilterFlatField(pipeline.ProcessObject):
-    """
-        Applies the flat field image to the input stream
-    """
-    def __init__(self, input=None, ff_image=None):
-        pipeline.ProcessObject.__init__(self, input)
-        if ff_image != None:
-            self.setFFImage(ff_image)
-        
-    def setFFImage(self, ff_image):
-        self.ff_image = ff_image
-        self.modified()
-    
-    def generateData(self):
-        inpt = self.getInput(0).getData()
-        output = inpt*self.ff_image
-        self.getOutput(0).setData(output)
-
 
 class ImageCorrect(pipeline.ProcessObject):
     """
@@ -155,6 +105,74 @@ def scale_image( input_image, dtype):
     input_image *= (255.0 / input_image.max())
     input_image = input_image.astype(dtype)
     return input_image
+
+
+class FilterFlatField(pipeline.ProcessObject):
+    """
+        Applies the flat field image to the input stream
+    """
+    def __init__(self, input=None, ff_image=None):
+        pipeline.ProcessObject.__init__(self, input)
+        if ff_image != None:
+            self.setFFImage(ff_image)
+        
+    def setFFImage(self, ff_image):
+        self.ff_image = ff_image
+        self.modified()
+    
+    def generateData(self):
+        inpt = self.getInput(0).getData()
+        output = inpt*self.ff_image
+        self.getOutput(0).setData(output)
+
+
+class BinarySegmentation(pipeline.ProcessObject):
+    """
+        Segments the bacteria colonies in the images.
+    """
+    def __init__(self, input=None, bgImg=None, std_bgImg=None, alpha=None):
+        pipeline.ProcessObject.__init__(self, input)
+        self.bgImg = bgImg
+        self.binary = numpy.zeros(bgImg.shape)
+        self.std_bgImg = std_bgImg
+        self.alpha = alpha
+    
+    def generateData(self):
+        """
+            Perform background subtraction on the image, segment the
+            bacteria colonies (foreground) from the background data.
+        """
+        input = self.getInput(0).getData()
+        #background subtraction
+        output = (input.astype(numpy.float) - self.bgImg.astype(numpy.float))
+        
+        #threshold = self.alpha * std_bgImg
+        #print threshold[100:200,100:200]
+        tempBinary = numpy.zeros(output.shape)
+        tempBinary[output < -5] = 1
+        
+        tempBinary = ndimage.morphology.binary_opening(tempBinary, iterations = 5)
+        
+        self.binary = numpy.logical_or(self.binary, tempBinary).astype(numpy.uint8)
+        self.getOutput(0).setData(self.binary*255)
+        
+        
+class Perimeter(pipeline.ProcessObject):
+    """
+        Obtain the perimeter of the bacteria colonies, to be used in
+        calculating region properties data
+    """
+    def __init__(self, input = None, orgImg = None):
+        pipeline.ProcessObject.__init__(self, input)
+        self.setOutput(input, 1)
+        
+    def generateData(self):
+        input = self.getInput(0).getData()/255
+        fill = ndimage.grey_erosion(input, size = (3,3))
+        
+        output = input - fill
+        self.getOutput(0).setData(output*255)
+        self.getOutput(1).setData(input*255)        
 
 
 class RegionProperties(pipeline.ProcessObject):
@@ -285,25 +303,6 @@ class RegionProperties(pipeline.ProcessObject):
             pass
         
         self.getOutput(0).setData(input)    
-        
-        
-class Perimeter(pipeline.ProcessObject):
-    """
-        Obtain the perimeter of the bacteria colonies, to be used in
-        calculating region properties data
-    """
-    def __init__(self, input = None, orgImg = None):
-        pipeline.ProcessObject.__init__(self, input)
-        self.setOutput(input, 1)
-        
-    def generateData(self):
-        input = self.getInput(0).getData()/255
-        fill = ndimage.grey_erosion(input, size = (3,3))
-        
-        output = input - fill
-        self.getOutput(0).setData(output*255)
-        self.getOutput(1).setData(input*255)        
-    
     
 def main():
     """
