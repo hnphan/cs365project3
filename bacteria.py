@@ -252,7 +252,7 @@ class RegionProperties(pipeline.ProcessObject):
                         box = 5
                 
                 if box < 5:
-                	self.store[box,:, self.count] = metrics
+                    self.store[box,:, self.count] = metrics
                 
             self.count += 1      
         
@@ -291,7 +291,7 @@ class RegionProperties(pipeline.ProcessObject):
 
             #pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"])
             #pylab.plot(time,circularity_um,'r', time , circularity_ur, 'g', 
-            #		time, circularity_ll, 'b',time, circularity_lm, 'k')
+            #        time, circularity_ll, 'b',time, circularity_lm, 'k')
 
             pylab.title('Circularity Over Time')
             pylab.xlabel('Time (Frames)')
