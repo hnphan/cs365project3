@@ -264,13 +264,13 @@ class RegionProperties(pipeline.ProcessObject):
             pylab.subplot(211)
 
             # Plot area against time for each dish region
-            area_um = self.store[Dishes.upper_middle,0,:]
-            area_ur = self.store[Dishes.upper_right,0,:]
-            area_ll = self.store[Dishes.lower_left,0,:]
-            area_lm = self.store[Dishes.lower_middle,0,:]
+            area_um = self.store[Dishes.upper_middle, 0, :]
+            area_ur = self.store[Dishes.upper_right, 0, :]
+            area_ll = self.store[Dishes.lower_left, 0, :]
+            area_lm = self.store[Dishes.lower_middle, 0, :]
             
-            p1, = pylab.plot(time,area_um,'r')
-            p2, = pylab.plot(time , area_ur, 'g')
+            p1, = pylab.plot(time, area_um,'r')
+            p2, = pylab.plot(time, area_ur, 'g')
             p3, = pylab.plot(time, area_ll, 'b')
             p4, = pylab.plot(time, area_lm, 'k')
             pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"], loc=1)
@@ -278,9 +278,29 @@ class RegionProperties(pipeline.ProcessObject):
             pylab.title('Area Against Time')
             pylab.xlabel('Time (Frames)')
             pylab.ylabel('Area (Pixels)')
+            #pylab.show()
+
+            # Plot the rate of growth of area
+            # Rate of growth is the derivative of the area function
+            # Since we have only discrete data, we approximate the derivative
+            pylab.subplot(212)
+            um_rog = numpy.diff(area_um)
+            ur_rog = numpy.diff(area_ur)
+            ll_rog = numpy.diff(area_ll)
+            lm_rog = numpy.diff(area_lm)
+
+            p1, = pylab.plot(time, um_rog,'r')
+            p2, = pylab.plot(time, ur_rog, 'g')
+            p3, = pylab.plot(time, ll_rog, 'b')
+            p4, = pylab.plot(time, lm_rog, 'k')
+            pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"], loc=1)
+
+            pylab.title("Area rate of growth")
+            pylab.xlabel("Time (frames - 1)")
+            pylab.xlabel("Rate of growth")
             
             # Plot circularity data
-            pylab.subplot(212)
+            pylab.subplot(213)
             circularity_um = self.store[Dishes.upper_middle,1,:]
             circularity_ur = self.store[Dishes.upper_right,1,:]
             circularity_ll = self.store[Dishes.lower_left,1,:]
