@@ -193,8 +193,8 @@ class RegionProperties(pipeline.ProcessObject):
     
     def generateData(self):
         """
-            Iterate through the 140 data slides, obtaining region properties and
-            generate display windows of the information when completed.
+            Iterate through the data slides, obtaining region properties.
+            Display matplotlib graphs of the data when completed.
         """
         
         if self.count < self.num_data_slides: # Generate data
@@ -216,7 +216,7 @@ class RegionProperties(pipeline.ProcessObject):
             #grab slices from these labels for use in perimeters
             slices = ndimage.find_objects(labels)
             
-            print "There are %s regions" % (count)
+            #print "There are %s regions" % (count)
             # loop through each identified region
             for i in range(1,numpy.unique(labels).size):
             
@@ -236,7 +236,7 @@ class RegionProperties(pipeline.ProcessObject):
     
                 metrics = numpy.array([area, circularity])
                 
-                print "Colony %s at %s has an area of %s" % (i, com, area)
+                #print "Colony %s at %s has an area of %s" % (i, com, area)
                 #print "Circularity : %s " %(circularity)
                 
                 #decides which bin to store area and circularity in
@@ -261,9 +261,9 @@ class RegionProperties(pipeline.ProcessObject):
         # When finished iterating through the slides, generate and plot data
         elif self.count == self.num_data_slides: 
             time = range(60,200)
-            pylab.subplot(211)
+            pylab.subplot(311)
 
-            # Plot area against time for each dish region
+            # Plot area over time for each dish region
             area_um = self.store[Dishes.upper_middle, 0, :]
             area_ur = self.store[Dishes.upper_right, 0, :]
             area_ll = self.store[Dishes.lower_left, 0, :]
@@ -275,32 +275,34 @@ class RegionProperties(pipeline.ProcessObject):
             p4, = pylab.plot(time, area_lm, 'k')
             pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"], loc=1)
 
-            pylab.title('Area Against Time')
+            pylab.title('Area Over Time')
             pylab.xlabel('Time (Frames)')
             pylab.ylabel('Area (Pixels)')
-            #pylab.show()
 
             # Plot the rate of growth of area
             # Rate of growth is the derivative of the area function
             # Since we have only discrete data, we approximate the derivative
-            pylab.subplot(212)
+            pylab.subplot(312)
             um_rog = numpy.diff(area_um)
             ur_rog = numpy.diff(area_ur)
             ll_rog = numpy.diff(area_ll)
             lm_rog = numpy.diff(area_lm)
 
-            p1, = pylab.plot(time, um_rog,'r')
-            p2, = pylab.plot(time, ur_rog, 'g')
-            p3, = pylab.plot(time, ll_rog, 'b')
-            p4, = pylab.plot(time, lm_rog, 'k')
+            # We lose the first index of 'time' when we call diff()
+            # (can't take difference of the first datapoint and its previous)
+            p1, = pylab.plot(time[1:], um_rog,'r')
+            p2, = pylab.plot(time[1:], ur_rog, 'g')
+            p3, = pylab.plot(time[1:], ll_rog, 'b')
+            #NOTE: due to area in lower middle dropping, the scale gets ruined
+            p4, = pylab.plot(time[1:], lm_rog, 'k')
             pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"], loc=1)
 
             pylab.title("Area rate of growth")
             pylab.xlabel("Time (frames - 1)")
-            pylab.xlabel("Rate of growth")
+            pylab.xlabel("Rate of growth (approximate derivative)") 
             
             # Plot circularity data
-            pylab.subplot(213)
+            pylab.subplot(313)
             circularity_um = self.store[Dishes.upper_middle,1,:]
             circularity_ur = self.store[Dishes.upper_right,1,:]
             circularity_ll = self.store[Dishes.lower_left,1,:]
@@ -319,7 +321,8 @@ class RegionProperties(pipeline.ProcessObject):
             pylab.xlabel('Time (Frames)')
             pylab.ylabel('circularity (Pixels)')
             
-            pylab.show()
+            pylab.tight_layout() # Apply settings to adjust spacing and layout
+            pylab.show() # Show all three subplots in one window
         
         else:
             pass
