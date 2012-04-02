@@ -29,7 +29,7 @@ import source
 
 class Dishes:
     """
-        Mimics an enumerated type to store the different petri dishes
+        Mimics an enumerated type to store the different Petri dishes
         with bacteria colonies.
     """
     upper_middle, upper_right, lower_left, lower_middle = range(4)
@@ -91,7 +91,6 @@ class FilterFlatField(pipeline.ProcessObject):
     """
         Applies the flat field image to the input stream
     """
-    
     def __init__(self, input=None, ff_image=None):
         pipeline.ProcessObject.__init__(self, input)
         if ff_image != None:
@@ -109,9 +108,8 @@ class FilterFlatField(pipeline.ProcessObject):
 
 class ImageCorrect(pipeline.ProcessObject):
     """
-        Corrects the image by cropping its relevant region, converting the dtype.
+        Corrects the image by cropping a relevant region, converting the dtype.
     """
-    
     def __init__(self, input=None, crop_dimensions=None, dtype=numpy.float64):
         pipeline.ProcessObject.__init__(self, input)
         self.dtype = dtype
@@ -167,15 +165,20 @@ class RegionProperties(pipeline.ProcessObject):
     """  
     
     #Constructor, regions and a mask are optional
-    def __init__(self, input = None, input1 = None):
+    def __init__(self, input=None, input1=None, num_data_slides=140):
         pipeline.ProcessObject.__init__(self, input)
-        self.setInput(input1, 1)
-        self.store = numpy.zeros((4,2,140))
         self.count = 0
+        self.setInput(input1, 1)
+        self.num_data_slides = num_data_slides
+        self.store = numpy.zeros((4, 2, self.num_data_slides))
     
     def generateData(self):
+        """
+            Iterate through the 140 data slides, obtaining region properties and
+            generate display windows of the information when completed.
+        """
         
-        if self.count <140: # iterate through the 140 data slides
+        if self.count < self.num_data_slides: # Generate data
             #grabs input and converts it to binary
             input = self.getInput(1).getData()/255
             perimeters = self.getInput(0).getData()/255
@@ -191,7 +194,6 @@ class RegionProperties(pipeline.ProcessObject):
             for each in range(1,l.size):
                 labels[labels == l[each]] = each
             
-            
             #grab slices from these labels for use in perimeters
             slices = ndimage.find_objects(labels)
             
@@ -199,15 +201,15 @@ class RegionProperties(pipeline.ProcessObject):
             # loop through each identified region
             for i in range(1,numpy.unique(labels).size):
             
-                #calculate the center of mass and area of the region
-                c_o_m = ndimage.measurements.center_of_mass(input,labels,i)
+                # calculate the center of mass and area of the region
+                com = ndimage.measurements.center_of_mass(input,labels,i)
                 area = numpy.count_nonzero(input[slices[i-1]])
                 
-                #calculates circularity
+                # calculates circularity
                 p = numpy.count_nonzero(perimeters[slices[i-1]])
     
-                #checks to make sure perimeter is not zero
-                if p!=0:
+                # checks to make sure perimeter is not zero
+                if (p != 0):
                     abscirc = ((p*p)/area)
                     circularity = (4*math.pi)/abscirc
                 else:
@@ -215,19 +217,19 @@ class RegionProperties(pipeline.ProcessObject):
     
                 metrics = numpy.array([area, circularity])
                 
-                print "Colony %s at %s has an area of %s" % (i,c_o_m,area)
+                print "Colony %s at %s has an area of %s" % (i, com, area)
                 #print "Circularity : %s " %(circularity)
                 
                 #decides which bin to store area and circularity in
-                if c_o_m[0] < half:
-                    if c_o_m[1] < two_thirds:
+                if com[0] < half:
+                    if com[1] < two_thirds:
                         box = Dishes.upper_middle
                     else:
                         box = Dishes.upper_right
                 else:
-                    if c_o_m[1] < one_third:
+                    if com[1] < one_third:
                         box = Dishes.lower_left
-                    elif c_o_m[1] < two_thirds:
+                    elif com[1] < two_thirds:
                         box = Dishes.lower_middle
                     else:
                         box = 5
@@ -235,15 +237,14 @@ class RegionProperties(pipeline.ProcessObject):
                 if box < 5:
                 	self.store[box,:, self.count] = metrics
                 
-                
             self.count += 1      
         
         # When finished iterating through the slides, generate and plot data
-        elif self.count == 140: 
-            #plot area
+        elif self.count == self.num_data_slides: 
             time = range(60,200)
             pylab.subplot(211)
-            #plotting area against time
+
+            # Plot area against time for each dish region
             area_um = self.store[Dishes.upper_middle,0,:]
             area_ur = self.store[Dishes.upper_right,0,:]
             area_ll = self.store[Dishes.lower_left,0,:]
@@ -254,13 +255,12 @@ class RegionProperties(pipeline.ProcessObject):
             p3, = pylab.plot(time, area_ll, 'b')
             p4, = pylab.plot(time, area_lm, 'k')
             pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"], loc=1)
-            #pylab.plot(time,area_um,'r', time , area_ur, 'g', 
-            #		time, area_ll, 'b',time, area_lm, 'k')
+
             pylab.title('Area Against Time')
             pylab.xlabel('Time (Frames)')
             pylab.ylabel('Area (Pixels)')
-            #pylab.show()
             
+            # Plot circularity data
             pylab.subplot(212)
             circularity_um = self.store[Dishes.upper_middle,1,:]
             circularity_ur = self.store[Dishes.upper_right,1,:]
@@ -271,10 +271,12 @@ class RegionProperties(pipeline.ProcessObject):
             p2, = pylab.plot(time , circularity_ur, 'g')
             p3, = pylab.plot(time, circularity_ll, 'b')
             p4, = pylab.plot(time, circularity_lm, 'k')
+
             #pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"])
             #pylab.plot(time,circularity_um,'r', time , circularity_ur, 'g', 
             #		time, circularity_ll, 'b',time, circularity_lm, 'k')
-            pylab.title('circularity Against Time')
+
+            pylab.title('Circularity Over Time')
             pylab.xlabel('Time (Frames)')
             pylab.ylabel('circularity (Pixels)')
             
@@ -287,6 +289,10 @@ class RegionProperties(pipeline.ProcessObject):
         
         
 class Perimeter(pipeline.ProcessObject):
+    """
+        Obtain the perimeter of the bacteria colonies, to be used in
+        calculating region properties data
+    """
     def __init__(self, input = None, orgImg = None):
         pipeline.ProcessObject.__init__(self, input)
         self.setOutput(input, 1)
