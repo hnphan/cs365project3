@@ -258,76 +258,63 @@ class RegionProperties(pipeline.ProcessObject):
                 
             self.count += 1      
         
-        # When finished iterating through the slides, generate and plot data
+        # When finished iterating through the slides, plot data
         elif self.count == self.num_data_slides: 
-            time = range(60,200)
-            pylab.subplot(311)
-
-            # Plot area over time for each dish region
-            area_um = self.store[Dishes.upper_middle, 0, :]
-            area_ur = self.store[Dishes.upper_right, 0, :]
-            area_ll = self.store[Dishes.lower_left, 0, :]
-            area_lm = self.store[Dishes.lower_middle, 0, :]
-            
-            p1, = pylab.plot(time, area_um,'r')
-            p2, = pylab.plot(time, area_ur, 'g')
-            p3, = pylab.plot(time, area_ll, 'b')
-            p4, = pylab.plot(time, area_lm, 'k')
-            pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"], loc=1)
-
-            pylab.title('Area Over Time')
-            pylab.xlabel('Time (Frames)')
-            pylab.ylabel('Area (Pixels)')
-
-            # Plot the rate of growth of area
-            # Rate of growth is the derivative of the area function
-            # Since we have only discrete data, we approximate the derivative
-            pylab.subplot(312)
-            um_rog = numpy.diff(area_um)
-            ur_rog = numpy.diff(area_ur)
-            ll_rog = numpy.diff(area_ll)
-            lm_rog = numpy.diff(area_lm)
-
-            # We lose the first index of 'time' when we call diff()
-            # (can't take difference of the first datapoint and its previous)
-            p1, = pylab.plot(time[1:], um_rog,'r')
-            p2, = pylab.plot(time[1:], ur_rog, 'g')
-            p3, = pylab.plot(time[1:], ll_rog, 'b')
-            #NOTE: due to area in lower middle dropping, the scale gets ruined
-            p4, = pylab.plot(time[1:], lm_rog, 'k')
-            pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"], loc=1)
-
-            pylab.title("Area rate of growth")
-            pylab.xlabel("Time (frames - 1)")
-            pylab.xlabel("Rate of growth (approximate derivative)") 
-            
-            # Plot circularity data
-            pylab.subplot(313)
-            circularity_um = self.store[Dishes.upper_middle,1,:]
-            circularity_ur = self.store[Dishes.upper_right,1,:]
-            circularity_ll = self.store[Dishes.lower_left,1,:]
-            circularity_lm = self.store[Dishes.lower_middle,1,:]
-            
-            p1, = pylab.plot(time,circularity_um,'r')
-            p2, = pylab.plot(time , circularity_ur, 'g')
-            p3, = pylab.plot(time, circularity_ll, 'b')
-            p4, = pylab.plot(time, circularity_lm, 'k')
-
-            #pylab.legend([p1,p2,p3,p4], ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"])
-            #pylab.plot(time,circularity_um,'r', time , circularity_ur, 'g', 
-            #        time, circularity_ll, 'b',time, circularity_lm, 'k')
-
-            pylab.title('Circularity Over Time')
-            pylab.xlabel('Time (Frames)')
-            pylab.ylabel('circularity (Pixels)')
-            
-            pylab.tight_layout() # Apply settings to adjust spacing and layout
-            pylab.show() # Show all three subplots in one window
-        
+            self.plotData()
         else:
             pass
-        
         self.getOutput(0).setData(input)    
+
+    def plotData(self):
+        """
+            Plots the data within self.store in a matplotlib graph.
+            
+            Uses the perimeter and circularity data within self.store.
+        """
+ 
+        # Area data per dish
+        area_data = [ self.store[dish,0,:] for dish in range(4) ]
+        # Rate of growth of area per dish
+        rog_data = [ numpy.diff(area) for area in area_data ]
+        # Circularity data per dish
+        circ_data = [ self.store[dish,1,:] for dish in range(4) ]
+
+        # Establish common variables used in plotting
+        line_colors = 'rgbk' # Colors to use for the 4 lines
+        time = range(0, 5*self.num_data_slides, 5) # 5 minute intervals
+        plotlines = 4 * [None] # Each item will hold y values for a line
+        legend_text = ["Upper Middle", "Upper Right", "Lower Left", "Lower Middle"] 
+
+        # Plot area over time
+        pylab.subplot(221)
+        for (i, values) in enumerate(area_data):
+            plotlines[i], = pylab.plot(time, values, line_colors[i])
+        pylab.legend(plotlines, legend_text, loc="best")
+        pylab.title("Bacteria Colony Area")
+        pylab.xlabel("Time (Minutes elapsed)")
+        pylab.ylabel("Area (Pixels)")
+
+        # Plot the rate of growth of area
+        pylab.subplot(222)
+        rog_data[3][79:82] = rog_data[3][77] # cancel out outliers so we can view scale
+        for (i, values) in enumerate(rog_data):
+            plotlines[i], = pylab.plot(time[1:], values, line_colors[i])
+        pylab.legend(plotlines, legend_text, loc="best")
+        pylab.title("Rate of Growth of Bacteria Colony")
+        pylab.xlabel("Time (minutes elapsed)")
+        pylab.ylabel("Rate of growth (approximate derivative)") 
+        
+        # Plot circularity data
+        pylab.subplot(223)
+        for (i, values) in enumerate(circ_data):
+            plotlines[i], = pylab.plot(time, values, line_colors[i])
+        pylab.legend(plotlines, legend_text, loc="best")
+        pylab.title("Bacteria Colony Circularity")
+        pylab.xlabel("Time (Minutes elapsed)")
+        pylab.ylabel("Circularity (Pixels)")
+        
+        pylab.tight_layout() # Apply settings to adjust spacing and layout
+        pylab.show() # Show all three subplots in one window
 
         
 class ColonyVisualize(pipeline.ProcessObject):
